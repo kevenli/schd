@@ -42,7 +42,7 @@ class CommandJob:
     
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         self.logger.info('Running command: %s', self.cmd)
-        p = subprocess.run(self.cmd, shell=True, env=os.environ, stdout=sys.stdout)
+        p = subprocess.run(self.cmd, shell=True, env=os.environ, stdout=sys.stdout, stderr=sys.stderr)
         self.logger.info('process completed, %s', p.returncode)
         self.logger.info('process output %s', p.stdout)
 
@@ -56,21 +56,22 @@ def main():
     if args.logfile:
         log_stream = open(args.logfile, 'a')
         sys.stdout = log_stream
+        sys.stderr = log_stream
     else:
         log_stream = sys.stdout
     
     config_file = args.config or 'conf/schd.yaml'
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', stream=log_stream)
-    sched = BlockingScheduler(executors={'default': ThreadPoolExecutor(1)})
-    with open(config_file, 'r') as f:
+    sched = BlockingScheduler(executors={'default': ThreadPoolExecutor(10)})
+    with open(config_file, 'r', encoding='utf8') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
 
     for job_name, job_config in config['jobs'].items():
         job_class_name = job_config.pop('class')
         job_cron = job_config.pop('cron')
         job = build_job(job_name, job_class_name, job_config)
-        sched.add_job(job, CronTrigger.from_crontab(job_cron), id=job_name)
+        sched.add_job(job, CronTrigger.from_crontab(job_cron), id=job_name, misfire_grace_time=10)
         logger.info('job added, %s', job_name)
 
     logger.info('scheduler starting.')
