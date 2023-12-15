@@ -1,0 +1,5 @@
+jobs:
+  ls:
+    class: CommandJob
+    cron: "* * * * *"
+    cmd: "ls -l"
