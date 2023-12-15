@@ -17,5 +17,5 @@ jobs:
 start a daemon
 
 ```
-schd 
+schd -c conf/schd.yaml
 ```
