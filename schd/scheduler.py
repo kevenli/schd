@@ -9,6 +9,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor
 import yaml
+from schd import __version__ as schd_version
 
 
 logger = logging.getLogger(__name__)
@@ -52,15 +53,16 @@ def main():
     parser.add_argument('--logfile')
     parser.add_argument('--config', '-c')
     args = parser.parse_args()
+    config_file = args.config or 'conf/schd.yaml'
+
+    print(f'starting schd, {schd_version}, config_file={config_file}')
 
     if args.logfile:
-        log_stream = open(args.logfile, 'a')
+        log_stream = open(args.logfile, 'a', encoding='utf8')
         sys.stdout = log_stream
         sys.stderr = log_stream
     else:
         log_stream = sys.stdout
-    
-    config_file = args.config or 'conf/schd.yaml'
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', stream=log_stream)
     sched = BlockingScheduler(executors={'default': ThreadPoolExecutor(10)})
