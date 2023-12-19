@@ -48,6 +48,21 @@ class CommandJob:
         self.logger.info('process output %s', p.stdout)
 
 
+def run_daemon(config_file):
+    sched = BlockingScheduler(executors={'default': ThreadPoolExecutor(10)})
+    with open(config_file, 'r', encoding='utf8') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+
+    for job_name, job_config in config['jobs'].items():
+        job_class_name = job_config.pop('class')
+        job_cron = job_config.pop('cron')
+        job = build_job(job_name, job_class_name, job_config)
+        sched.add_job(job, CronTrigger.from_crontab(job_cron), id=job_name, misfire_grace_time=10)
+        logger.info('job added, %s', job_name)
+
+    logger.info('scheduler starting.')
+    sched.start()
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--logfile')
@@ -65,19 +80,7 @@ def main():
         log_stream = sys.stdout
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', stream=log_stream)
-    sched = BlockingScheduler(executors={'default': ThreadPoolExecutor(10)})
-    with open(config_file, 'r', encoding='utf8') as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
-
-    for job_name, job_config in config['jobs'].items():
-        job_class_name = job_config.pop('class')
-        job_cron = job_config.pop('cron')
-        job = build_job(job_name, job_class_name, job_config)
-        sched.add_job(job, CronTrigger.from_crontab(job_cron), id=job_name, misfire_grace_time=10)
-        logger.info('job added, %s', job_name)
-
-    logger.info('scheduler starting.')
-    sched.start()
+    run_daemon(config_file)
 
 
 if __name__ == '__main__':
