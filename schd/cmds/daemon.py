@@ -7,11 +7,11 @@ from schd import __version__  as schd_version
 
 class DaemonCommand(CommandBase):
     def add_arguments(self, parser):
-        parser.add_argument('--config')
+        parser.add_argument('--config', '-c')
         parser.add_argument('--logfile')
 
     def run(self, args):
-        config_file = args.config or 'conf/schd.yaml'
+        config_file = args.config
         print(f'starting schd, {schd_version}, config_file={config_file}')
 
         if args.logfile:

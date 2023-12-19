@@ -48,10 +48,19 @@ class CommandJob:
         self.logger.info('process output %s', p.stdout)
 
 
-def run_daemon(config_file):
-    sched = BlockingScheduler(executors={'default': ThreadPoolExecutor(10)})
+def read_config(config_file=None):
+    if config_file is None:
+        config_file = 'conf/schd.yaml'
+
     with open(config_file, 'r', encoding='utf8') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
+
+    return config
+
+
+def run_daemon(config_file=None):
+    config = read_config(config_file=config_file)
+    sched = BlockingScheduler(executors={'default': ThreadPoolExecutor(10)})
 
     for job_name, job_config in config['jobs'].items():
         job_class_name = job_config.pop('class')
@@ -68,7 +77,7 @@ def main():
     parser.add_argument('--logfile')
     parser.add_argument('--config', '-c')
     args = parser.parse_args()
-    config_file = args.config or 'conf/schd.yaml'
+    config_file = args.config
 
     print(f'starting schd, {schd_version}, config_file={config_file}')
 
