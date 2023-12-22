@@ -14,7 +14,7 @@ def main():
     sys.path.append('.')
     parser = argparse.ArgumentParser('schd')
     parser.add_argument('--version', action='store_true', default=False)
-    sub_command_parsers = parser.add_subparsers(dest='cmd', required=False)
+    sub_command_parsers = parser.add_subparsers(dest='cmd')
 
     for cmd, cmd_obj in commands.items():
         sub_command_parser = sub_command_parsers.add_parser(cmd)
