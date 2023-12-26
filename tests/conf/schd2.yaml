@@ -3,6 +3,12 @@ jobs:
     class: CommandJob
     cron: "* * * * *"
     cmd: "ls -l -a"
+  
+  ls_all:
+    class: CommandJob
+    cron: "* * * * *"
+    cmd: "ls -l -a"
+
   outputstderr:
     class: CommandJob
     cron: "* * * * *"

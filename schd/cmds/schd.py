@@ -1,5 +1,6 @@
 import argparse
 import sys
+from schd.cmds.jobs import JobsCommand
 from schd.scheduler import main as scheduler_main
 from .daemon import DaemonCommand
 from .run import RunCommand
@@ -8,6 +9,7 @@ from schd import __version__ as schd_version
 commands = {
     'daemon': DaemonCommand(),
     'run': RunCommand(),
+    'jobs': JobsCommand(),
 }
 
 def main():
