@@ -49,6 +49,9 @@ class CommandJob:
 
 
 def read_config(config_file=None):
+    if config_file is None and 'SCHD_CONFIG' in os.environ:
+        config_file = os.environ['SCHD_CONFIG']
+
     if config_file is None:
         config_file = 'conf/schd.yaml'
 
