@@ -3,8 +3,14 @@ jobs:
     class: CommandJob
     cron: "* * * * *"
     cmd: "ls -l"
+    
   outputstderr:
     class: CommandJob
     cron: "* * * * *"
     cmd: "python outputstderr.py"
+
+  exit1:
+    class: CommandJob
+    cron: "* * * * *"
+    cmd: sh -c "exit 1"
     
