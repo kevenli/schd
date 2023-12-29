@@ -19,3 +19,12 @@ start a daemon
 ```
 schd -c conf/schd.yaml
 ```
+
+
+# Email Notifactor
+
+```
+error_notificator:
+  type: email
+  
+```

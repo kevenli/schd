@@ -1,3 +1,4 @@
+import logging
 import yaml
 from schd.cmds.base import CommandBase
 from schd.scheduler import build_job, read_config
@@ -20,6 +21,7 @@ class RunCommand(CommandBase):
         parser.add_argument('--config', '-c')
 
     def run(self, args):
+        logging.basicConfig(level=logging.INFO)
         job_name = args.job
         config_file = args.config
         run_job(config_file, job_name)
