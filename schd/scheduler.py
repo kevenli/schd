@@ -4,6 +4,9 @@ import importlib
 import os
 import sys
 from typing import Any
+import smtplib
+from email.mime.text import MIMEText
+from email.header import Header
 import subprocess
 import tempfile
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -11,6 +14,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor
 import yaml
 from schd import __version__ as schd_version
+from schd.util import ensure_bool
 
 
 logger = logging.getLogger(__name__)
@@ -25,7 +29,7 @@ def build_job(job_name, job_class_name, config):
         m = importlib.import_module(module_name)
         job_cls = getattr(m, cls_name)
 
-    if hasattr('job_cls', 'from_settings'):
+    if hasattr(job_cls, 'from_settings'):
         job = job_cls.from_settings(job_name=job_name, config=config)
     else:
         job = job_cls(**config)
@@ -33,8 +37,16 @@ def build_job(job_name, job_class_name, config):
     return job
 
 
-class CommandFailedException(Exception):
-    def __init__(self, returncode, output):
+class JobFailedException(Exception):
+    def __init__(self, job_name, error_message, inner_ex:"Exception"=None):
+        self.job_name = job_name
+        self.error_message = error_message
+        self.inner_ex = inner_ex
+
+
+class CommandJobFailedException(JobFailedException):
+    def __init__(self, job_name, error_message, returncode, output):
+        super(CommandJobFailedException, self).__init__(job_name, error_message)
         self.returncode = returncode
         self.output = output
 
@@ -42,10 +54,11 @@ class CommandFailedException(Exception):
 class CommandJob:
     def __init__(self, cmd, job_name=None):
         self.cmd = cmd
+        self.job_name = job_name
         self.logger = logging.getLogger(f'CommandJob#{job_name}')
 
     @classmethod
-    def from_settings(cls, job_name, config):
+    def from_settings(cls, job_name=None, config=None, **kwargs):
         return cls(cmd=config['cmd'], job_name=job_name)
     
     def __call__(self, *args: Any, **kwds: Any) -> Any:
@@ -61,7 +74,7 @@ class CommandJob:
             self.logger.info('process output: \n%s', output)
 
             if process.returncode != 0:
-                raise CommandFailedException(process.returncode, output)
+                raise CommandJobFailedException(self.job_name, "process failed.", process.returncode, output)
 
 
 class JobExceptionWrapper:
@@ -76,7 +89,7 @@ class JobExceptionWrapper:
             self.handler(e)
 
 
-class EmailErrorNotificator:
+class EmailErrorNotifier:
     def __init__(self, from_addr, to_addr, smtp_server, smtp_port, smtp_user, smtp_password, start_tls=True, debug=False):
         self.from_addr = from_addr
         self.to_addr = to_addr
@@ -87,29 +100,38 @@ class EmailErrorNotificator:
         self.start_tls = start_tls
         self.debug=debug
 
-    def __call__(self, e):
-        import smtplib
-        from email.mime.text import MIMEText
-        from email.header import Header
+    def __call__(self, ex:"Exception"):
+        if isinstance(ex, JobFailedException):
+            ex: "JobFailedException" = ex
+            job_name = ex.job_name
+            error_message = str(ex)
+        else:
+            job_name = "unknown"
+            error_message = str(ex)
 
-        msg = MIMEText(str(e), 'plain', 'utf8')
+        mail_subject = f'Schd job failed. {job_name}' 
+        msg = MIMEText(error_message, 'plain', 'utf8')
         msg['From'] = Header(self.from_addr)
         msg['To'] = Header(self.to_addr)
-        msg['Subject'] = Header('Error from schd')
+        msg['Subject'] = Header(mail_subject)
 
-        smtp = smtplib.SMTP(self.smtp_server, self.smtp_port)
-        smtp.set_debuglevel(self.debug)
-        if self.start_tls:
-            smtp.starttls()
+        try:
+            smtp = smtplib.SMTP(self.smtp_server, self.smtp_port)
+            smtp.set_debuglevel(self.debug)
+            if self.start_tls:
+                smtp.starttls()
 
-        smtp.login(self.smtp_user, self.smtp_password)
-        smtp.sendmail(self.from_addr, self.to_addr, msg.as_string())
-        smtp.quit()
+            smtp.login(self.smtp_user, self.smtp_password)
+            smtp.sendmail(self.from_addr, self.to_addr, msg.as_string())
+            smtp.quit()
+            logger.info('Error mail notification sent. %s', mail_subject)
+        except Exception as ex:
+            logger.error('Error when sending email notification, %s', ex, exc_info=ex)
 
 
-class ConsoleErrorNotificator:
+class ConsoleErrorNotifier:
     def __call__(self, e):
-        print('ConsoleErrorNotificator')
+        print('ConsoleErrorNotifier:')
         print(e)
 
 
@@ -130,24 +152,31 @@ def run_daemon(config_file=None):
     config = read_config(config_file=config_file)
     sched = BlockingScheduler(executors={'default': ThreadPoolExecutor(10)})
 
-    if 'error_notificator' in config:
-        error_notificator_type = config['error_notificator'].get('type', 'console')
-        if error_notificator_type == 'console':
-            job_error_handler = ConsoleErrorNotificator()
-        elif error_notificator_type == 'email':
-            smtp_server = config['error_notificator'].get('smtp_server', os.environ.get('SMTP_SERVER'))
-            smtp_port = int(config['error_notificator'].get('smtp_port', os.environ.get('SMTP_PORT', '587')))
-            smtp_starttls = config['error_notificator'].get('smtp_starttls', os.environ.get('SMTP_STARTTLS', 'true')).lower() == 'true'
-            smtp_user = config['error_notificator'].get('smtp_user', os.environ.get('SMTP_USER'))
-            smtp_password = config['error_notificator'].get('smtp_password', os.environ.get('SMTP_PASS'))
-            from_addr = config['error_notificator'].get('from_addr', os.environ.get('SMTP_FROM'))
-            to_addr = config['error_notificator'].get('to_addr', os.environ.get('SCHD_ADMIN_EMAIL'))
-            job_error_handler = EmailErrorNotificator(from_addr, to_addr, smtp_server, smtp_port, smtp_user, 
-                                                      smtp_password, start_tls=smtp_starttls, debug=True)
+    if 'error_notifier' in config:
+        error_notifier_config = config['error_notifier']
+        error_notifier_type = error_notifier_config.get('type', 'console')
+        if error_notifier_type == 'console':
+            job_error_handler = ConsoleErrorNotifier()
+        elif error_notifier_type == 'email':
+            smtp_server = error_notifier_config.get('smtp_server', os.environ.get('SMTP_SERVER'))
+            smtp_port = int(error_notifier_config.get('smtp_port', os.environ.get('SMTP_PORT', 587)))
+            smtp_starttls = ensure_bool(error_notifier_config.get('smtp_starttls', os.environ.get('SMTP_STARTTLS', 'true')))
+            smtp_user = error_notifier_config.get('smtp_user', os.environ.get('SMTP_USER'))
+            smtp_password = error_notifier_config.get('smtp_password', os.environ.get('SMTP_PASS'))
+            if error_notifier_config.get('from_addr', os.environ.get('SMTP_FROM')):
+                from_addr = error_notifier_config.get('from_addr', os.environ.get('SMTP_FROM'))
+            else:
+                from_addr = smtp_user
+
+            to_addr = error_notifier_config.get('to_addr', os.environ.get('SCHD_ADMIN_EMAIL'))
+            debug = error_notifier_config.get('debug', False)
+            logger.info(f'using EmailErrorNotifier, smtp_server: {smtp_server}, smtp_port: {smtp_port}, debug: {debug}')
+            job_error_handler = EmailErrorNotifier(from_addr, to_addr, smtp_server, smtp_port, smtp_user,
+                                                   smtp_password, start_tls=smtp_starttls, debug=debug)
         else:
-            raise Exception("Unknown error_notificator type: %s" % error_notificator_type)
+            raise Exception("Unknown error_notifier type: %s" % error_notifier_type)
     else:
-        job_error_handler = ConsoleErrorNotificator()
+        job_error_handler = ConsoleErrorNotifier()
         
     for job_name, job_config in config['jobs'].items():
         job_class_name = job_config.pop('class')
@@ -176,7 +205,7 @@ def main():
     else:
         log_stream = sys.stdout
 
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', stream=log_stream)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s - %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', stream=log_stream)
     run_daemon(config_file)
 
 

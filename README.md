@@ -27,4 +27,13 @@ schd -c conf/schd.yaml
 error_notificator:
   type: email
   
+  
 ```
+
+environments:
+
+export SMTP_USER='yourname@gmail.com'
+export SMTP_PASS='xxx'
+export SMTP_SERVER='smtp.gmail.com'
+export SMTP_FROM="yourname@gmail.com"
+export SCHD_ADMIN_EMAIL="yourname@gmail.com"

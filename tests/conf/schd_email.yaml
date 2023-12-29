@@ -1,0 +1,21 @@
+error_notifier:
+  type: email
+  smtp_server: smtp.gmail.com
+  smtp_user: yourname@gmail.com
+  smtp_password: xxx
+  # from_addr: yourname@gmail.com
+  # to_addr: yourname@gmail.com
+  # smtp_port: 587
+  # smtp_starttls: true
+
+jobs:
+  ls:
+    class: CommandJob
+    cron: "* * * * *"
+    cmd: "ls -l"
+
+  outputstderr:
+    class: CommandJob
+    cron: "* * * * *"
+    cmd: "python outputstderr.py"
+    
