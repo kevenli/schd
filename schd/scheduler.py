@@ -51,6 +51,12 @@ class CommandJobFailedException(JobFailedException):
         self.output = output
 
 
+class JobContext:
+    def __init__(self, job_name):
+        self.job_name = job_name
+        self.output_to_console = False
+
+
 class CommandJob:
     def __init__(self, cmd, job_name=None):
         self.cmd = cmd
@@ -61,10 +67,22 @@ class CommandJob:
     def from_settings(cls, job_name=None, config=None, **kwargs):
         return cls(cmd=config['cmd'], job_name=job_name)
     
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
+    def __call__(self, context:"JobContext"=None, **kwds: Any) -> Any:
+        output_to_console = False
+        if context is not None:
+            output_to_console = context.output_to_console
+
         with tempfile.NamedTemporaryFile(mode='w+', delete=False) as temp_file:
             self.logger.info('Running command: %s', self.cmd)
-            process = subprocess.Popen(self.cmd, shell=True, env=os.environ, stdout=temp_file, stderr=temp_file)
+
+            if output_to_console:
+                output_stream = sys.stdout
+                output_stream_err = sys.stderr
+            else:
+                output_stream = temp_file
+                output_stream_err = temp_file
+
+            process = subprocess.Popen(self.cmd, shell=True, env=os.environ, stdout=output_stream, stderr=output_stream_err)
             process.communicate()
 
             temp_file.seek(0)
