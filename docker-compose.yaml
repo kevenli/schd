@@ -1,24 +1,9 @@
 version: '3'
 services:
   rafdb:
-    image: raf120
+    image: rafdb
     volumes:
       - ./conf:/app/conf
       - ./data:/app/data
       - ./output:/app/output
-    environment:
-      COINMARKETCAP_DATA_DIR: /app/data/com_coinmarketcap
-      GOV_TREASURY_ROOT: /app/data/gov_treasury
-      MODEL_DIR: /app/data/models
-      TZ: Asia/Shanghai
-
-  schd:
-    image: raf120
-    volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-    environment:
-      COINMARKETCAP_DATA_DIR: /app/data/com_coinmarketcap
-      GOV_TREASURY_ROOT: /app/data/gov_treasury
-      TZ: Asia/Shanghai
     command: schd daemon --logfile=logs/schd.log

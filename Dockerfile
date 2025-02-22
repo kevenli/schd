@@ -1,4 +1,4 @@
-FROM python:3.8-slim-buster AS builder
+FROM python:3.9-slim-buster AS builder
 
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -13,7 +13,7 @@ WORKDIR /app_src
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-FROM python:3.8-slim-buster
+FROM python:3.9-slim-buster
 ENV TZ=Asia/Shanghai
 WORKDIR /app
 COPY rafdb /app/rafdb

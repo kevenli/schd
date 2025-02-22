@@ -39,13 +39,16 @@ def main():
     symbols = df_exchange_info['symbol']
 
     for symbol in symbols:
-        df_instrument_funding_rate = bd.get_fapi_funding_rate(symbol, date)
-        df_new_funding_rate=pd.DataFrame({
-            'symbol':[symbol],
-            'date':[date],
-            'fundingRateDaily':[df_instrument_funding_rate['fundingRate'].apply(Decimal).sum()]
-        })
-        dfs.append(df_new_funding_rate)
+        try:
+            df_instrument_funding_rate = bd.get_fapi_funding_rate(symbol, date)
+            df_new_funding_rate=pd.DataFrame({
+                'symbol':[symbol],
+                'date':[date],
+                'fundingRateDaily':[df_instrument_funding_rate['fundingRate'].apply(Decimal).sum()]
+            })
+            dfs.append(df_new_funding_rate)
+        except FileNotFoundError:
+            pass
 
     df_funding_rate = pd.concat(dfs, ignore_index=True)
     if df_funding_rate.empty:

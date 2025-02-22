@@ -2,7 +2,7 @@
 # set -x
 START_DATE=20210101
 END_DATE=$(date -u --date='1 day ago' +"%Y%m%d")
-TABLES=${TABLES:="contractinfo dailyquote marketcap treasury_yield_curve"}
+TABLES=${TABLES:="contractinfo dailyquote marketcap treasury_yield_curve fundingrate"}
 PYTHON="python"
 FORCE=${FORCE:="0"}
 

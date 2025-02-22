@@ -3,7 +3,7 @@ set -e
 DEFAULT_START_DATE=$(date -u --date='7 day ago' +"%Y%m%d")
 START_DATE=${START_DATE:=$DEFAULT_START_DATE}
 END_DATE=$(date -u --date='1 day ago' +"%Y%m%d")
-DEFAULT_TABLES="contractinfo dailyquote marketcap treasury_yield_curve OpenInterest fundingrate"
+DEFAULT_TABLES="contractinfo dailyquote marketcap treasury_yield_curve fundingrate"
 TABLES=${TABLES:=$DEFAULT_TABLES}
 PYTHON="python"
 FORCE=${FORCE:="0"}

@@ -13,7 +13,7 @@ from .util import iter_dates, ensure_date
 logger = logging.getLogger(__name__)
 
 
-class DataNotFound(Exception):
+class DataNotFound(FileNotFoundError):
     pass
 
 

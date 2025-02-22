@@ -41,10 +41,13 @@ def main():
     symbols = df_exchange_info['symbol']
 
     for symbol in symbols:
-        df_quote = bd.get_fapi_openinterest_1d(symbol, date)
-        df_quote['symbol'] = symbol
-        df_quote['date'] = date
-        dfs.append(df_quote)
+        try:
+            df_quote = bd.get_fapi_openinterest_1d(symbol, date)
+            df_quote['symbol'] = symbol
+            df_quote['date'] = date
+            dfs.append(df_quote)
+        except FileNotFoundError:
+            pass
 
     df_openinterest = pd.concat(dfs, ignore_index=True)
     if df_openinterest.empty:
