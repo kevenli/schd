@@ -1,0 +1,10 @@
+jobs:
+  produce_rafdb:
+    class: CommandJob
+    cron: "50 8 * * *"
+    cmd: "bash scripts/produce_rafdb.sh"
+
+error_notifier:
+  type: email
+  to_addr: pbleester@gmail.com
+  
