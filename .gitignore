@@ -171,4 +171,4 @@ cython_debug/
 .pypirc
 .binance_cache
 .coinmarketcap_data
-data
+/data
