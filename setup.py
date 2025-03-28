@@ -7,7 +7,7 @@ def read_requirements():
 
 setup(
     name="schd",
-    version="0.0.9",
+    version="0.0.10",
     url="https://github.com/kevenli/schd",
     packages=find_packages(exclude=('tests', 'tests.*')),
     install_requires=read_requirements(),
