@@ -10,11 +10,12 @@ setup(
     version="0.0.10",
     url="https://github.com/kevenli/schd",
     packages=find_packages(exclude=('tests', 'tests.*')),
-    install_requires=read_requirements(),
+    install_requires=['apscheduler<4.0', 'pyaml'],
     entry_points={
         'console_scripts': [
             'schd = schd.cmds.schd:main',
         ],
     },
-    include_package_data=True,
+    license="ApacheV2",
+    license_files="LICENSE",
 )
