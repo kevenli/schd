@@ -2,7 +2,7 @@
 produce dailyquote data table.
 """
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 import os
 import sys
@@ -35,7 +35,8 @@ def main():
         data_date = datetime.now()
         df_exchange_info = get_symbols(bd, data_date)
 
-    df_exchange_info = df_exchange_info.query('deliveryDate > @date and onboardDate <= @date')
+    tomorrow = date + timedelta(days=1)
+    df_exchange_info = df_exchange_info.query('deliveryDate > @tomorrow and onboardDate <= @date')
     symbols = df_exchange_info['symbol']
 
     for symbol in symbols:

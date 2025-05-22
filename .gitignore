@@ -172,3 +172,5 @@ cython_debug/
 .binance_cache
 .coinmarketcap_data
 /data
+/.vscode
+/output
