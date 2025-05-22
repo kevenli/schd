@@ -1,9 +1,11 @@
 import argparse
+from contextlib import redirect_stdout
 import logging
 import importlib
+import io
 import os
 import sys
-from typing import Any
+from typing import Any, Protocol, Dict, Union
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
@@ -20,7 +22,37 @@ from schd.util import ensure_bool
 logger = logging.getLogger(__name__)
 
 
-def build_job(job_name, job_class_name, config):
+class JobExecutionResult(Protocol):
+    def get_code(self) -> int:...
+
+
+class JobContext:
+    def __init__(self, job_name:str, logger=None, stdout=None, stderr=None):
+        self.job_name = job_name
+        self.logger = logger
+        self.output_to_console = False
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class Job(Protocol):
+    """
+    Protocol to represent a job structure.
+    """
+    def execute(self, context:JobContext) -> Union[JobExecutionResult, int, None]:
+        """
+        execute the job
+        """
+        pass
+
+
+class DefaultJobExecutionResult(JobExecutionResult):
+    def __init__(self, code:int, log:str):
+        self.code = code
+        self.log = log
+
+
+def build_job(job_name, job_class_name, config)->Job:
     if not '.' in job_class_name:
         module = sys.modules[__name__]
         job_cls = getattr(module, job_class_name)
@@ -51,12 +83,6 @@ class CommandJobFailedException(JobFailedException):
         self.output = output
 
 
-class JobContext:
-    def __init__(self, job_name):
-        self.job_name = job_name
-        self.output_to_console = False
-
-
 class CommandJob:
     def __init__(self, cmd, job_name=None):
         self.cmd = cmd
@@ -66,6 +92,25 @@ class CommandJob:
     @classmethod
     def from_settings(cls, job_name=None, config=None, **kwargs):
         return cls(cmd=config['cmd'], job_name=job_name)
+    
+    def execute(self, context:JobContext) -> int:
+        process = subprocess.Popen(
+            self.cmd,
+            shell=True,
+            env=os.environ,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+
+        stdout, stderr = process.communicate()
+        if context.stdout:
+            context.stdout.write(stdout)
+            context.stdout.write(stderr)
+                
+        ret_code = process.wait()
+        return ret_code
+
     
     def __call__(self, context:"JobContext"=None, **kwds: Any) -> Any:
         output_to_console = False
@@ -166,9 +211,75 @@ def read_config(config_file=None):
     return config
 
 
+class LocalScheduler:
+    def __init__(self, max_concurrent_jobs: int = 10):
+        """
+        Initialize the LocalScheduler with support for concurrent job execution.
+        
+        :param max_concurrent_jobs: Maximum number of jobs to run concurrently.
+        """
+        executors = {
+            'default': ThreadPoolExecutor(max_concurrent_jobs)
+        }
+        self.scheduler = BlockingScheduler(executors=executors)
+        self._jobs:Dict[str, Job] = {}
+        logger.info("LocalScheduler initialized in 'local' mode with concurrency support")
+
+    def add_job(self, job: Job, cron_expression: str, job_name: str) -> None:
+        """
+        Add a job to the scheduler.
+
+        :param job: An instance of a class conforming to the Job protocol.
+        :param cron_expression: A string representing the cron schedule.
+        :param job_name: Optional name for the job.
+        """
+        self._jobs[job_name] = job
+        try:
+            cron_trigger = CronTrigger.from_crontab(cron_expression)
+            self.scheduler.add_job(self.execute_job, cron_trigger, kwargs={'job_name':job_name})
+            logger.info(f"Job '{job_name or job.__class__.__name__}' added with cron expression: {cron_expression}")
+        except Exception as e:
+            logger.error(f"Failed to add job '{job_name or job.__class__.__name__}': {str(e)}")
+            raise
+
+    def execute_job(self, job_name:str):
+        job = self._jobs[job_name]
+        output_stream = io.StringIO()
+        context = JobContext(job_name=job_name, stdout=output_stream)
+        try:
+            with redirect_stdout(output_stream):
+                job_result = job.execute(context)
+
+            if job_result is None:
+                ret_code = 0
+            elif isinstance(job_result, int):
+                ret_code = job_result
+            elif hasattr(job_result, 'get_code'):
+                ret_code = job_result.get_code()
+            else:
+                raise ValueError('unsupported result type: %s', job_result)
+            
+        except Exception as ex:
+            logger.exception('error when executing job, %s', ex)
+            ret_code = -1
+
+        logger.info('job %s execute complete: %d', job_name, ret_code)
+        logger.info('job %s process output: \n%s', job_name, output_stream.getvalue())
+
+    def run(self):
+        """
+        Start the scheduler.
+        """
+        try:
+            logger.info("Starting LocalScheduler...")
+            self.scheduler.start()
+        except (KeyboardInterrupt, SystemExit):
+            logger.info("Scheduler stopped.")
+
+
 def run_daemon(config_file=None):
     config = read_config(config_file=config_file)
-    sched = BlockingScheduler(executors={'default': ThreadPoolExecutor(10)})
+    scheduler = LocalScheduler()
 
     if 'error_notifier' in config:
         error_notifier_config = config['error_notifier']
@@ -200,12 +311,11 @@ def run_daemon(config_file=None):
         job_class_name = job_config.pop('class')
         job_cron = job_config.pop('cron')
         job = build_job(job_name, job_class_name, job_config)
-        job_warpped = JobExceptionWrapper(job, job_error_handler)
-        sched.add_job(job_warpped, CronTrigger.from_crontab(job_cron), id=job_name, misfire_grace_time=10)
+        scheduler.add_job(job, job_cron, job_name=job_name)
         logger.info('job added, %s', job_name)
 
     logger.info('scheduler starting.')
-    sched.start()
+    scheduler.run()
 
 def main():
     parser = argparse.ArgumentParser()
