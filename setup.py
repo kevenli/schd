@@ -7,7 +7,7 @@ def read_requirements():
 
 setup(
     name="rafdb",
-    version="1.0",
+    version="1.1.0",
     packages=find_packages(exclude=('tests', 'tests.*')),
     package_data={
         'rafdb': ['csv_data/*'],
