@@ -19,33 +19,9 @@ import yaml
 from schd import __version__ as schd_version
 from schd.schedulers.remote import RemoteScheduler
 from schd.util import ensure_bool
-
+from schd.job import Job, JobContext, JobExecutionResult
 
 logger = logging.getLogger(__name__)
-
-
-class JobExecutionResult(Protocol):
-    def get_code(self) -> int:...
-
-
-class JobContext:
-    def __init__(self, job_name:str, logger=None, stdout=None, stderr=None):
-        self.job_name = job_name
-        self.logger = logger
-        self.output_to_console = False
-        self.stdout = stdout
-        self.stderr = stderr
-
-
-class Job(Protocol):
-    """
-    Protocol to represent a job structure.
-    """
-    def execute(self, context:JobContext) -> Union[JobExecutionResult, int, None]:
-        """
-        execute the job
-        """
-        pass
 
 
 class DefaultJobExecutionResult(JobExecutionResult):
@@ -328,7 +304,7 @@ async def run_daemon(config_file=None):
     scheduler.start()
     while True:
         await asyncio.sleep(1000)
-        
+
 
 async def main():
     parser = argparse.ArgumentParser()
@@ -336,6 +312,8 @@ async def main():
     parser.add_argument('--config', '-c')
     args = parser.parse_args()
     config_file = args.config
+
+    logging.basicConfig(level=logging.DEBUG)
 
     print(f'starting schd, {schd_version}, config_file={config_file}')
 
