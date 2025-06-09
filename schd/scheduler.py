@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 from contextlib import redirect_stdout
 import logging
 import importlib
@@ -16,6 +17,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor
 import yaml
 from schd import __version__ as schd_version
+from schd.schedulers.remote import RemoteScheduler
 from schd.util import ensure_bool
 
 
@@ -225,7 +227,10 @@ class LocalScheduler:
         self._jobs:Dict[str, Job] = {}
         logger.info("LocalScheduler initialized in 'local' mode with concurrency support")
 
-    def add_job(self, job: Job, cron_expression: str, job_name: str) -> None:
+    async def init(self):
+        pass
+
+    async def add_job(self, job: Job, cron_expression: str, job_name: str) -> None:
         """
         Add a job to the scheduler.
 
@@ -276,10 +281,15 @@ class LocalScheduler:
         except (KeyboardInterrupt, SystemExit):
             logger.info("Scheduler stopped.")
 
+    def start(self):
+        self.scheduler.start()
 
-def run_daemon(config_file=None):
+
+async def run_daemon(config_file=None):
     config = read_config(config_file=config_file)
-    scheduler = LocalScheduler()
+    # scheduler = LocalScheduler()
+    scheduler = RemoteScheduler(worker_name='local')
+    await scheduler.init()
 
     if 'error_notifier' in config:
         error_notifier_config = config['error_notifier']
@@ -311,13 +321,16 @@ def run_daemon(config_file=None):
         job_class_name = job_config.pop('class')
         job_cron = job_config.pop('cron')
         job = build_job(job_name, job_class_name, job_config)
-        scheduler.add_job(job, job_cron, job_name=job_name)
+        await scheduler.add_job(job, job_cron, job_name=job_name)
         logger.info('job added, %s', job_name)
 
     logger.info('scheduler starting.')
-    scheduler.run()
+    scheduler.start()
+    while True:
+        await asyncio.sleep(1000)
+        
 
-def main():
+async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--logfile')
     parser.add_argument('--config', '-c')
@@ -334,8 +347,9 @@ def main():
         log_stream = sys.stdout
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s - %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', stream=log_stream)
-    run_daemon(config_file)
+    await run_daemon(config_file)
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
+    
