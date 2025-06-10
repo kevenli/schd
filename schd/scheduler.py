@@ -1,11 +1,12 @@
 import argparse
+import asyncio
 from contextlib import redirect_stdout
 import logging
 import importlib
 import io
 import os
 import sys
-from typing import Any, Protocol, Dict, Union
+from typing import Any, Optional, Protocol, Dict, Union
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
@@ -16,34 +17,12 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor
 import yaml
 from schd import __version__ as schd_version
+from schd.schedulers.remote import RemoteScheduler
 from schd.util import ensure_bool
-
+from schd.job import Job, JobContext, JobExecutionResult
+from schd.config import SchdConfig, SchedulerConfig, read_config
 
 logger = logging.getLogger(__name__)
-
-
-class JobExecutionResult(Protocol):
-    def get_code(self) -> int:...
-
-
-class JobContext:
-    def __init__(self, job_name:str, logger=None, stdout=None, stderr=None):
-        self.job_name = job_name
-        self.logger = logger
-        self.output_to_console = False
-        self.stdout = stdout
-        self.stderr = stderr
-
-
-class Job(Protocol):
-    """
-    Protocol to represent a job structure.
-    """
-    def execute(self, context:JobContext) -> Union[JobExecutionResult, int, None]:
-        """
-        execute the job
-        """
-        pass
 
 
 class DefaultJobExecutionResult(JobExecutionResult):
@@ -198,19 +177,6 @@ class ConsoleErrorNotifier:
         print(e)
 
 
-def read_config(config_file=None):
-    if config_file is None and 'SCHD_CONFIG' in os.environ:
-        config_file = os.environ['SCHD_CONFIG']
-
-    if config_file is None:
-        config_file = 'conf/schd.yaml'
-
-    with open(config_file, 'r', encoding='utf8') as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
-
-    return config
-
-
 class LocalScheduler:
     def __init__(self, max_concurrent_jobs: int = 10):
         """
@@ -225,7 +191,10 @@ class LocalScheduler:
         self._jobs:Dict[str, Job] = {}
         logger.info("LocalScheduler initialized in 'local' mode with concurrency support")
 
-    def add_job(self, job: Job, cron_expression: str, job_name: str) -> None:
+    async def init(self):
+        pass
+
+    async def add_job(self, job: Job, cron_expression: str, job_name: str) -> None:
         """
         Add a job to the scheduler.
 
@@ -276,12 +245,29 @@ class LocalScheduler:
         except (KeyboardInterrupt, SystemExit):
             logger.info("Scheduler stopped.")
 
+    def start(self):
+        self.scheduler.start()
 
-def run_daemon(config_file=None):
+
+def build_scheduler(scheduler_config:Optional[SchedulerConfig], config:SchdConfig):
+    if not scheduler_config:
+        return LocalScheduler()
+    
+    if scheduler_config.cls == 'LocalScheduler':
+        scheduler = LocalScheduler()
+    elif scheduler_config.cls == 'RemoteScheduler':
+        scheduler = RemoteScheduler(worker_name=config.worker_name, remote_host=scheduler_config.params['remote_host'])
+    else:
+        raise ValueError('invalid scheduler config: %s' % scheduler_config)
+    return scheduler
+
+
+async def run_daemon(config_file=None):
     config = read_config(config_file=config_file)
-    scheduler = LocalScheduler()
+    scheduler = build_scheduler(config.scheduler, config)
+    await scheduler.init()
 
-    if 'error_notifier' in config:
+    if hasattr(config, 'error_notifier'):
         error_notifier_config = config['error_notifier']
         error_notifier_type = error_notifier_config.get('type', 'console')
         if error_notifier_type == 'console':
@@ -311,18 +297,23 @@ def run_daemon(config_file=None):
         job_class_name = job_config.pop('class')
         job_cron = job_config.pop('cron')
         job = build_job(job_name, job_class_name, job_config)
-        scheduler.add_job(job, job_cron, job_name=job_name)
+        await scheduler.add_job(job, job_cron, job_name=job_name)
         logger.info('job added, %s', job_name)
 
     logger.info('scheduler starting.')
-    scheduler.run()
+    scheduler.start()
+    while True:
+        await asyncio.sleep(1000)
 
-def main():
+
+async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--logfile')
     parser.add_argument('--config', '-c')
     args = parser.parse_args()
     config_file = args.config
+
+    logging.basicConfig(level=logging.DEBUG)
 
     print(f'starting schd, {schd_version}, config_file={config_file}')
 
@@ -334,8 +325,8 @@ def main():
         log_stream = sys.stdout
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s - %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', stream=log_stream)
-    run_daemon(config_file)
+    await run_daemon(config_file)
 
 
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())

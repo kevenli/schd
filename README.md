@@ -20,6 +20,26 @@ start a daemon
 schd -c conf/schd.yaml
 ```
 
+## local scheduler
+default 
+
+conf/schd.yaml
+```
+scheduler:
+  cls: LocalScheduler
+```
+
+## remote scheduler
+conf/schd.yaml
+```
+scheduler:
+  cls: RemoteScheduler
+  params:
+    remote_host: http://localhost:8899/
+
+worker_name: local
+```
+
 
 # Email Notifier
 
