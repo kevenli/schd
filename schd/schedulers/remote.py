@@ -2,9 +2,12 @@ import asyncio
 from contextlib import redirect_stdout
 import io
 import json
+import os
 from typing import Dict
 from urllib.parse import urljoin
 import aiohttp
+import aiohttp.client_exceptions
+import aiohttp.http_exceptions
 from schd.job import JobContext
 
 import logging
@@ -49,6 +52,27 @@ class RemoteApiClient:
                         yield event
                     else:
                         raise ValueError('unknown event type %s' % event_type)
+                    
+    async def update_job_instance(self, worker_name, job_name, job_instance_id, status, ret_code=None):
+        url = urljoin(self._base_url, f'/api/workers/{worker_name}/jobs/{job_name}/{job_instance_id}')
+        post_data = {'status':status}
+        if ret_code is not None:
+            post_data['ret_code'] = ret_code
+
+        async with aiohttp.ClientSession() as session:
+            async with session.put(url, json=post_data) as response:
+                result = await response.json()
+
+    async def commit_job_log(self, worker_name, job_name, job_instance_id, logfile_path):
+        upload_url = urljoin(self._base_url, f'/api/workers/{worker_name}/jobs/{job_name}/{job_instance_id}/log')
+        async with aiohttp.ClientSession() as session:
+            with open(logfile_path, 'rb') as f:
+                data = aiohttp.FormData()
+                data.add_field('logfile', f, filename=os.path.basename(logfile_path), content_type='application/octet-stream')
+
+                async with session.put(upload_url, data=data) as resp:
+                    print("Status:", resp.status)
+                    print("Response:", await resp.text())
 
 
 class RemoteScheduler:
@@ -69,18 +93,38 @@ class RemoteScheduler:
     async def start_main_loop(self):
         while True:
             logger.info('start_main_loop ')
-            async for event in self.client.subscribe_worker_eventstream(self._worker_name):
-                print(event)
-                self.execute_task(event['data']['job_name'], event['data']['id'])
+            try:
+                async for event in self.client.subscribe_worker_eventstream(self._worker_name):
+                    print(event)
+                    await self.execute_task(event['data']['job_name'], event['data']['id'])
+            except aiohttp.client_exceptions.ClientPayloadError:
+                logger.info('connection lost')
+            except aiohttp.client_exceptions.SocketTimeoutError:
+                logger.info('SocketTimeoutError')
+            except aiohttp.client_exceptions.ClientConnectorError:
+                # cannot connect, try later
+                logger.debug('connect failed, ClientConnectorError, try later.')
+                await asyncio.sleep(10)
+                continue
+            except Exception as ex:
+                logger.error('error in start_main_loop, %s', ex, exc_info=ex)
+                break
 
     def start(self):
         self._loop_task = self._loop.create_task(self.start_main_loop())
 
-    def execute_task(self, job_name, instance_id:int):
+    async def execute_task(self, job_name, instance_id:int):
         job = self._jobs[job_name]
-        context = JobContext(job_name)
-        output_stream = io.StringIO()
-        context = JobContext(job_name=job_name, stdout=output_stream)
+        # output_stream = io.StringIO()
+        logfile_dir = f'joblog/{instance_id}'
+        if not os.path.exists(logfile_dir):
+            os.makedirs(logfile_dir)
+        logfile_path = os.path.join(logfile_dir, 'output.txt')
+        output_stream = io.FileIO(logfile_path, mode='w+')
+        text_stream = io.TextIOWrapper(output_stream, encoding='utf-8')
+
+        context = JobContext(job_name=job_name, stdout=text_stream)
+        await self.client.update_job_instance(self._worker_name, job_name, instance_id, status='RUNNING')
         try:
             with redirect_stdout(output_stream):
                 job_result = job.execute(context)
@@ -99,4 +143,9 @@ class RemoteScheduler:
             ret_code = -1
 
         logger.info('job %s execute complete: %d', job_name, ret_code)
-        logger.info('job %s process output: \n%s', job_name, output_stream.getvalue())
+        text_stream.flush()
+        output_stream.flush()
+        output_stream.close()
+        # logger.info('job %s process output: \n%s', job_name, output_stream.getvalue())
+        await self.client.commit_job_log(self._worker_name, job_name, instance_id, logfile_path)
+        await self.client.update_job_instance(self._worker_name, job_name, instance_id, status='COMPLETED', ret_code=ret_code)
