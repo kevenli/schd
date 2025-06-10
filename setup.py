@@ -10,7 +10,7 @@ setup(
     version="0.0.10",
     url="https://github.com/kevenli/schd",
     packages=find_packages(exclude=('tests', 'tests.*')),
-    install_requires=['apscheduler<4.0', 'pyaml'],
+    install_requires=['apscheduler<4.0', 'pyaml', 'aiohttp'],
     entry_points={
         'console_scripts': [
             'schd = schd.cmds.schd:main',
