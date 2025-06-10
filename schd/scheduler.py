@@ -6,7 +6,7 @@ import importlib
 import io
 import os
 import sys
-from typing import Any, Protocol, Dict, Union
+from typing import Any, Optional, Protocol, Dict, Union
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
@@ -20,7 +20,7 @@ from schd import __version__ as schd_version
 from schd.schedulers.remote import RemoteScheduler
 from schd.util import ensure_bool
 from schd.job import Job, JobContext, JobExecutionResult
-from schd.config import read_config
+from schd.config import SchdConfig, SchedulerConfig, read_config
 
 logger = logging.getLogger(__name__)
 
@@ -249,12 +249,22 @@ class LocalScheduler:
         self.scheduler.start()
 
 
+def build_scheduler(scheduler_config:Optional[SchedulerConfig], config:SchdConfig):
+    if not scheduler_config:
+        return LocalScheduler()
+    
+    if scheduler_config.cls == 'LocalScheduler':
+        scheduler = LocalScheduler()
+    elif scheduler_config.cls == 'RemoteScheduler':
+        scheduler = RemoteScheduler(worker_name=config.worker_name, remote_host=scheduler_config.params['remote_host'])
+    else:
+        raise ValueError('invalid scheduler config: %s' % scheduler_config)
+    return scheduler
+
+
 async def run_daemon(config_file=None):
     config = read_config(config_file=config_file)
-    if config.scheduler_cls == 'LocalScheduler':
-        scheduler = LocalScheduler()
-    else:
-        scheduler = RemoteScheduler(worker_name=config.worker_name)
+    scheduler = build_scheduler(config.scheduler, config)
     await scheduler.init()
 
     if hasattr(config, 'error_notifier'):

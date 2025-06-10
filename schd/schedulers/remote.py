@@ -77,8 +77,8 @@ class RemoteApiClient:
 
 
 class RemoteScheduler:
-    def __init__(self, worker_name):
-        self.client = RemoteApiClient('http://localhost:8899/')
+    def __init__(self, worker_name:str, remote_host:str):
+        self.client = RemoteApiClient(remote_host)
         self._worker_name = worker_name
         self._jobs = {}
         self._loop_task = None
