@@ -20,6 +20,7 @@ from schd import __version__ as schd_version
 from schd.schedulers.remote import RemoteScheduler
 from schd.util import ensure_bool
 from schd.job import Job, JobContext, JobExecutionResult
+from schd.config import read_config
 
 logger = logging.getLogger(__name__)
 
@@ -176,19 +177,6 @@ class ConsoleErrorNotifier:
         print(e)
 
 
-def read_config(config_file=None):
-    if config_file is None and 'SCHD_CONFIG' in os.environ:
-        config_file = os.environ['SCHD_CONFIG']
-
-    if config_file is None:
-        config_file = 'conf/schd.yaml'
-
-    with open(config_file, 'r', encoding='utf8') as f:
-        config = yaml.load(f, Loader=yaml.FullLoader)
-
-    return config
-
-
 class LocalScheduler:
     def __init__(self, max_concurrent_jobs: int = 10):
         """
@@ -263,11 +251,13 @@ class LocalScheduler:
 
 async def run_daemon(config_file=None):
     config = read_config(config_file=config_file)
-    # scheduler = LocalScheduler()
-    scheduler = RemoteScheduler(worker_name='local')
+    if config.scheduler_cls == 'LocalScheduler':
+        scheduler = LocalScheduler()
+    else:
+        scheduler = RemoteScheduler(worker_name=config.worker_name)
     await scheduler.init()
 
-    if 'error_notifier' in config:
+    if hasattr(config, 'error_notifier'):
         error_notifier_config = config['error_notifier']
         error_notifier_type = error_notifier_config.get('type', 'console')
         if error_notifier_type == 'console':
@@ -330,4 +320,3 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
-    
