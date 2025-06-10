@@ -40,7 +40,8 @@ class RemoteApiClient:
     async def subscribe_worker_eventstream(self, worker_name):
         url = urljoin(self._base_url, f'/api/workers/{worker_name}/eventstream')
 
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(sock_read=600)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url) as resp:
                 async for line in resp.content:
                     decoded = line.decode("utf-8").strip()
