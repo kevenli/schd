@@ -6,7 +6,7 @@ import importlib
 import io
 import os
 import sys
-from typing import Any, Optional, Protocol, Dict, Union
+from typing import Any, Optional, Dict
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
@@ -15,7 +15,6 @@ import tempfile
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor
-import yaml
 from schd import __version__ as schd_version
 from schd.schedulers.remote import RemoteScheduler
 from schd.util import ensure_bool
