@@ -71,7 +71,9 @@ class CommandJob:
 
     @classmethod
     def from_settings(cls, job_name=None, config=None, **kwargs):
-        return cls(cmd=config.cmd, job_name=job_name)
+        # compatible with old cmd field
+        command = config.params.get('cmd') or config.cmd
+        return cls(cmd=command, job_name=job_name)
     
     def execute(self, context:JobContext) -> int:
         process = subprocess.Popen(
