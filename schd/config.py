@@ -34,31 +34,31 @@ class ConfigValue:
             field_name = f.name
             json_key = f.metadata.get("json", f.name)
             field_type = type_hints[field_name]
+            origin = get_origin(field_type)
+            args = get_args(field_type)
+
             if json_key in data:
                 value = data[json_key]
                 # Handle nested ConfigValue objects
                 if isinstance(field_type, type) and issubclass(field_type, ConfigValue):
                     init_data[field_name] = field_type.from_dict(value)
-                # Handle lists of ConfigValue objects
-                elif (
-                    hasattr(field_type, "__origin__")
-                    and field_type.__origin__ is list
-                    and isinstance(field_type.__args__[0], type)
-                    and issubclass(field_type.__args__[0], ConfigValue)
-                ):
+                # Handle lists of ConfigValue objects   List[ConfigValue]
+                elif origin is list and issubclass(args[0], ConfigValue):
                     nested_type = field_type.__args__[0]
                     init_data[field_name] = [nested_type.from_dict(item) for item in value]
                     # Handle Optional[ConfigValue]
-                elif get_origin(field_type) is Union:
-                    args = get_args(field_type)
-                    if (
-                        len(args) == 2
-                        and type(None) in args
-                        and any(isinstance(arg, type) and issubclass(arg, ConfigValue) for arg in args if arg is not type(None))
-                    ):
-                        actual_type = next(arg for arg in args if arg is not type(None))
-                        init_data[field_name] = actual_type.from_dict(value)
-
+                elif origin is Union and type(None) in args:
+                    actual_type = next((arg for arg in args if arg is not type(None)), None)
+                    if actual_type and issubclass(actual_type, ConfigValue):
+                        init_data[field_name] = actual_type.from_dict(value) if value is not None else None
+                    else:
+                        init_data[field_name] = value
+                # Case 4: Dict[str, ConfigValue]
+                elif origin is dict and issubclass(args[1], ConfigValue):
+                    value_type = args[1]
+                    init_data[field_name] = {
+                        k: value_type.from_dict(v) for k, v in value.items()
+                    }
                 else:
                     init_data[field_name] = value
         return cls(**init_data)
@@ -69,6 +69,7 @@ class JobConfig(ConfigValue):
     cls: str = field(metadata={"json": "class"})
     cron: str
     cmd: Optional[str] = None
+    params: dict = field(default=dict)
 
 
 @dataclass

@@ -20,7 +20,7 @@ from schd import __version__ as schd_version
 from schd.schedulers.remote import RemoteScheduler
 from schd.util import ensure_bool
 from schd.job import Job, JobContext, JobExecutionResult
-from schd.config import SchdConfig, SchedulerConfig, read_config
+from schd.config import JobConfig, SchdConfig, SchedulerConfig, read_config
 
 logger = logging.getLogger(__name__)
 
@@ -31,12 +31,13 @@ class DefaultJobExecutionResult(JobExecutionResult):
         self.log = log
 
 
-def build_job(job_name, job_class_name, config)->Job:
+def build_job(job_name, job_class_name, config:JobConfig)->Job:
     if not '.' in job_class_name:
         module = sys.modules[__name__]
         job_cls = getattr(module, job_class_name)
     else:
-        module_name, cls_name = job_class_name.rsplit('.', 1)
+        # format    "packagea.moduleb:ClassC"
+        module_name, cls_name = job_class_name.rsplit(':', 1)
         m = importlib.import_module(module_name)
         job_cls = getattr(m, cls_name)
 
@@ -70,7 +71,7 @@ class CommandJob:
 
     @classmethod
     def from_settings(cls, job_name=None, config=None, **kwargs):
-        return cls(cmd=config['cmd'], job_name=job_name)
+        return cls(cmd=config.cmd, job_name=job_name)
     
     def execute(self, context:JobContext) -> int:
         process = subprocess.Popen(
@@ -293,9 +294,9 @@ async def run_daemon(config_file=None):
     else:
         job_error_handler = ConsoleErrorNotifier()
         
-    for job_name, job_config in config['jobs'].items():
-        job_class_name = job_config.pop('class')
-        job_cron = job_config.pop('cron')
+    for job_name, job_config in config.jobs.items():
+        job_class_name = job_config.cls
+        job_cron = job_config.cron
         job = build_job(job_name, job_class_name, job_config)
         await scheduler.add_job(job, job_cron, job_name=job_name)
         logger.info('job added, %s', job_name)
