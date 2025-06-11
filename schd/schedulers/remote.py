@@ -43,6 +43,7 @@ class RemoteApiClient:
         timeout = aiohttp.ClientTimeout(sock_read=600)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.get(url) as resp:
+                resp.raise_for_status()
                 async for line in resp.content:
                     decoded = line.decode("utf-8").strip()
                     logger.info('got event, raw data: %s', decoded)

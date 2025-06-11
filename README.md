@@ -25,18 +25,14 @@ default
 
 conf/schd.yaml
 ```
-scheduler:
-  cls: LocalScheduler
+scheduler_cls: LocalScheduler
 ```
 
 ## remote scheduler
 conf/schd.yaml
 ```
-scheduler:
-  cls: RemoteScheduler
-  params:
-    remote_host: http://localhost:8899/
-
+scheduler_cls: RemoteScheduler
+scheduler_remote_host: http://localhost:8899/
 worker_name: local
 ```
 

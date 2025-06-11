@@ -20,7 +20,7 @@ from schd import __version__ as schd_version
 from schd.schedulers.remote import RemoteScheduler
 from schd.util import ensure_bool
 from schd.job import Job, JobContext, JobExecutionResult
-from schd.config import JobConfig, SchdConfig, SchedulerConfig, read_config
+from schd.config import JobConfig, SchdConfig, read_config
 
 logger = logging.getLogger(__name__)
 
@@ -250,22 +250,25 @@ class LocalScheduler:
         self.scheduler.start()
 
 
-def build_scheduler(scheduler_config:Optional[SchedulerConfig], config:SchdConfig):
-    if not scheduler_config:
-        return LocalScheduler()
+def build_scheduler(config:SchdConfig):
+    scheduler_cls = os.environ.get('SCHD_SCHEDULER_CLS') or config.scheduler_cls
     
-    if scheduler_config.cls == 'LocalScheduler':
+    if scheduler_cls == 'LocalScheduler':
         scheduler = LocalScheduler()
-    elif scheduler_config.cls == 'RemoteScheduler':
-        scheduler = RemoteScheduler(worker_name=config.worker_name, remote_host=scheduler_config.params['remote_host'])
+    elif scheduler_cls == 'RemoteScheduler':
+        logger.info('scheduler_cls: %s', scheduler_cls)
+        scheduler_remote_host = os.environ.get('SCHD_SCHEDULER_REMOTE_HOST') or config.scheduler_remote_host
+        assert scheduler_remote_host, 'scheduler_remote_host cannot be none'
+        logger.info('scheduler_remote_host: %s ', scheduler_remote_host)
+        scheduler = RemoteScheduler(worker_name=config.worker_name, remote_host=scheduler_remote_host)
     else:
-        raise ValueError('invalid scheduler config: %s' % scheduler_config)
+        raise ValueError('invalid scheduler_cls: %s' % scheduler_cls)
     return scheduler
 
 
 async def run_daemon(config_file=None):
     config = read_config(config_file=config_file)
-    scheduler = build_scheduler(config.scheduler, config)
+    scheduler = build_scheduler(config)
     await scheduler.init()
 
     if hasattr(config, 'error_notifier'):

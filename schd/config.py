@@ -73,18 +73,14 @@ class JobConfig(ConfigValue):
 
 
 @dataclass
-class SchedulerConfig(ConfigValue):
-    cls: str = "LocalScheduler"
-    params: dict = field(default=dict)
-
-
-@dataclass
 class SchdConfig(ConfigValue):
     jobs: Dict[str, JobConfig] = field(default=dict)
-    scheduler: Optional[SchedulerConfig] = None
+    scheduler_cls: str = 'LocalScheduler'
+    scheduler_remote_host: Optional[str] = None
     worker_name: str = 'local'
 
     def __getitem__(self,key):
+        # compatible to old fashion config['key']
         if hasattr(self, key):
             return getattr(self,key)
         else:
