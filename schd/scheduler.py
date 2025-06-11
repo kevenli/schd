@@ -50,7 +50,7 @@ def build_job(job_name, job_class_name, config:JobConfig)->Job:
 
 
 class JobFailedException(Exception):
-    def __init__(self, job_name, error_message, inner_ex:"Exception"=None):
+    def __init__(self, job_name, error_message, inner_ex:"Optional[Exception]"=None):
         self.job_name = job_name
         self.error_message = error_message
         self.inner_ex = inner_ex
@@ -94,7 +94,7 @@ class CommandJob:
         return ret_code
 
     
-    def __call__(self, context:"JobContext"=None, **kwds: Any) -> Any:
+    def __call__(self, context:"Optional[JobContext]"=None, **kwds: Any) -> Any:
         output_to_console = False
         if context is not None:
             output_to_console = context.output_to_console
@@ -147,7 +147,6 @@ class EmailErrorNotifier:
 
     def __call__(self, ex:"Exception"):
         if isinstance(ex, JobFailedException):
-            ex: "JobFailedException" = ex
             job_name = ex.job_name
             error_message = str(ex)
         else:
@@ -156,9 +155,9 @@ class EmailErrorNotifier:
 
         mail_subject = f'Schd job failed. {job_name}' 
         msg = MIMEText(error_message, 'plain', 'utf8')
-        msg['From'] = Header(self.from_addr)
-        msg['To'] = Header(self.to_addr)
-        msg['Subject'] = Header(mail_subject)
+        msg['From'] = str(Header(self.from_addr, 'utf8'))
+        msg['To'] = str(Header(self.to_addr, 'utf8'))
+        msg['Subject'] = str(Header(mail_subject, 'utf8'))
 
         try:
             smtp = smtplib.SMTP(self.smtp_server, self.smtp_port)
