@@ -26,6 +26,7 @@ class RemoteApiClient:
         }
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=post_data) as response:
+                response.raise_for_status()
                 result = await response.json()
 
     async def register_job(self, worker_name, job_name, cron):
@@ -35,6 +36,7 @@ class RemoteApiClient:
         }
         async with aiohttp.ClientSession() as session:
             async with session.put(url, json=post_data) as response:
+                response.raise_for_status()
                 result = await response.json()
 
     async def subscribe_worker_eventstream(self, worker_name):
@@ -63,6 +65,7 @@ class RemoteApiClient:
 
         async with aiohttp.ClientSession() as session:
             async with session.put(url, json=post_data) as response:
+                response.raise_for_status()
                 result = await response.json()
 
     async def commit_job_log(self, worker_name, job_name, job_instance_id, logfile_path):
