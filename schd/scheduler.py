@@ -260,7 +260,10 @@ def build_scheduler(config:SchdConfig):
         scheduler_remote_host = os.environ.get('SCHD_SCHEDULER_REMOTE_HOST') or config.scheduler_remote_host
         assert scheduler_remote_host, 'scheduler_remote_host cannot be none'
         logger.info('scheduler_remote_host: %s ', scheduler_remote_host)
-        scheduler = RemoteScheduler(worker_name=config.worker_name, remote_host=scheduler_remote_host)
+        worker_name = os.environ.get('SCHD_WORKER_NAME') or config.worker_name
+        assert worker_name, 'worker_name cannot be none'
+        logger.info('worker_name: %s ', worker_name)
+        scheduler = RemoteScheduler(worker_name=worker_name, remote_host=scheduler_remote_host)
     else:
         raise ValueError('invalid scheduler_cls: %s' % scheduler_cls)
     return scheduler
