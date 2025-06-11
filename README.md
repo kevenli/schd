@@ -29,6 +29,8 @@ scheduler_cls: LocalScheduler
 ```
 
 ## remote scheduler
+schedule by RemoteScheduler (schd-server)
+
 conf/schd.yaml
 ```
 scheduler_cls: RemoteScheduler

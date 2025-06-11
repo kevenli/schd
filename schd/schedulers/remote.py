@@ -7,8 +7,7 @@ from typing import Dict
 from urllib.parse import urljoin
 import aiohttp
 import aiohttp.client_exceptions
-import aiohttp.http_exceptions
-from schd.job import JobContext
+from schd.job import JobContext, Job
 
 import logging
 
@@ -20,12 +19,9 @@ class RemoteApiClient:
         self._base_url = base_url
 
     async def register_worker(self, name:str):
-        url = urljoin(self._base_url, '/api/workers')
-        post_data = {
-            'name': name,
-        }
+        url = urljoin(self._base_url, f'/api/workers/{name}')
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=post_data) as response:
+            async with session.put(url) as response:
                 response.raise_for_status()
                 result = await response.json()
 
@@ -84,14 +80,14 @@ class RemoteScheduler:
     def __init__(self, worker_name:str, remote_host:str):
         self.client = RemoteApiClient(remote_host)
         self._worker_name = worker_name
-        self._jobs = {}
+        self._jobs:"Dict[str,Job]" = {}
         self._loop_task = None
         self._loop = asyncio.get_event_loop()
 
     async def init(self):
         await self.client.register_worker(self._worker_name)
 
-    async def add_job(self, job, cron, job_name):
+    async def add_job(self, job:Job, cron, job_name):
         await self.client.register_job(self._worker_name, job_name=job_name, cron=cron)
         self._jobs[job_name] = job
 
@@ -120,7 +116,6 @@ class RemoteScheduler:
 
     async def execute_task(self, job_name, instance_id:int):
         job = self._jobs[job_name]
-        # output_stream = io.StringIO()
         logfile_dir = f'joblog/{instance_id}'
         if not os.path.exists(logfile_dir):
             os.makedirs(logfile_dir)
@@ -131,7 +126,7 @@ class RemoteScheduler:
         context = JobContext(job_name=job_name, stdout=text_stream)
         await self.client.update_job_instance(self._worker_name, job_name, instance_id, status='RUNNING')
         try:
-            with redirect_stdout(output_stream):
+            with redirect_stdout(text_stream):
                 job_result = job.execute(context)
 
             if job_result is None:
@@ -147,10 +142,9 @@ class RemoteScheduler:
             logger.exception('error when executing job, %s', ex)
             ret_code = -1
 
-        logger.info('job %s execute complete: %d', job_name, ret_code)
+        logger.info('job %s execute complete: %d, log_file: %s', job_name, ret_code, logfile_path)
         text_stream.flush()
         output_stream.flush()
         output_stream.close()
-        # logger.info('job %s process output: \n%s', job_name, output_stream.getvalue())
         await self.client.commit_job_log(self._worker_name, job_name, instance_id, logfile_path)
         await self.client.update_job_instance(self._worker_name, job_name, instance_id, status='COMPLETED', ret_code=ret_code)
