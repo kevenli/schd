@@ -1,7 +1,8 @@
 import unittest
 from contextlib import redirect_stdout
 import io
-from schd.scheduler import LocalScheduler
+from schd.config import JobConfig
+from schd.scheduler import LocalScheduler, build_job
 
 
 class TestOutputJob:
@@ -27,9 +28,47 @@ class RedirectStdoutTest(unittest.TestCase):
         self.assertEqual('test output\n', output)
 
 
-class LocalSchedulerTest(unittest.TestCase):
-    def test_add_execute(self):
+class LocalSchedulerTest(unittest.IsolatedAsyncioTestCase):
+    async def test_add_execute(self):
         job = TestOutputJob()
         target = LocalScheduler()
-        target.add_job(job, "0 1 * * *", 'test_job')
+        await target.add_job(job, "0 1 * * *", 'test_job')
         target.execute_job("test_job")
+
+
+class JobHasParams:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+
+class JobHasFromSettingsMethod:
+    def __init__(self, job_name, z):
+        self.job_name = job_name
+        self.z = z
+    @classmethod
+    def from_settings(cls, job_name=None, config=None, **kwargs):
+        return JobHasFromSettingsMethod(job_name, config.params['z'])
+
+
+class TestBuildJob(unittest.TestCase):
+    def test_build_no_param(self):
+        job_cls = 'test_scheduler:TestOutputJob'
+        built_job = build_job('TestOutputJob', job_cls, JobConfig(cls=job_cls, cron='* * * * *'))
+        self.assertIsNotNone(built_job)
+
+    def test_build_has_param(self):
+        job_cls = 'test_scheduler:JobHasParams'
+        built_job:JobHasParams = build_job('JobHasParams', job_cls, JobConfig(cls=job_cls, cron='* * * * *', params={'x':1,'y':2}))
+        self.assertIsNotNone(built_job)
+        # build_job should pass params into contrustor accordingly
+        self.assertEqual(built_job.x, 1)
+        self.assertEqual(built_job.y, 2)
+
+    def test_build_from_settings(self):
+        job_cls = 'test_scheduler:JobHasFromSettingsMethod'
+        built_job:JobHasFromSettingsMethod = build_job('JobHasFromSettingsMethod', job_cls, JobConfig(cls=job_cls, cron='* * * * *', params={'z':3}))
+        self.assertIsNotNone(built_job)
+        # build_job should pass params into contrustor accordingly
+        self.assertEqual(built_job.job_name, 'JobHasFromSettingsMethod')
+        self.assertEqual(built_job.z, 3)

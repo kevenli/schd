@@ -69,12 +69,12 @@ class JobConfig(ConfigValue):
     cls: str = field(metadata={"json": "class"})
     cron: str
     cmd: Optional[str] = None
-    params: dict = field(default=dict)
+    params: dict = field(default_factory=dict)
 
 
 @dataclass
 class SchdConfig(ConfigValue):
-    jobs: Dict[str, JobConfig] = field(default=dict)
+    jobs: Dict[str, JobConfig] = field(default_factory=dict)
     scheduler_cls: str = 'LocalScheduler'
     scheduler_remote_host: Optional[str] = None
     worker_name: str = 'local'

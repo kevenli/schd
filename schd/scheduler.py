@@ -32,7 +32,7 @@ class DefaultJobExecutionResult(JobExecutionResult):
 
 
 def build_job(job_name, job_class_name, config:JobConfig)->Job:
-    if not '.' in job_class_name:
+    if not ':' in job_class_name:
         module = sys.modules[__name__]
         job_cls = getattr(module, job_class_name)
     else:
@@ -44,7 +44,7 @@ def build_job(job_name, job_class_name, config:JobConfig)->Job:
     if hasattr(job_cls, 'from_settings'):
         job = job_cls.from_settings(job_name=job_name, config=config)
     else:
-        job = job_cls(**config)
+        job = job_cls(**config.params)
 
     return job
 
