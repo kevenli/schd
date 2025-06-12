@@ -76,8 +76,8 @@ class RemoteApiClient:
                 data.add_field('logfile', f, filename=os.path.basename(logfile_path), content_type='application/octet-stream')
 
                 async with session.put(upload_url, data=data) as resp:
-                    print("Status:", resp.status)
-                    print("Response:", await resp.text())
+                    logger.info("Status: %d", resp.status)
+                    logger.info("Response: %s", await resp.text())
 
 
 class RemoteScheduler:
@@ -107,7 +107,7 @@ class RemoteScheduler:
             logger.info('start_main_loop ')
             try:
                 async for event in self.client.subscribe_worker_eventstream(self._worker_name):
-                    print(event)
+                    logger.info('got event, %s', event)
                     job_name = event['data']['job_name']
                     instance_id = event['data']['id']
                     _, queue_name = self._jobs[job_name]
