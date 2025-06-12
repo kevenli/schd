@@ -71,6 +71,7 @@ class JobConfig(ConfigValue):
     cmd: Optional[str] = None
     params: dict = field(default_factory=dict)
     timezone: Optional[str] = None
+    queue: str = ''
 
 
 @dataclass

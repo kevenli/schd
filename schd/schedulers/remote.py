@@ -3,7 +3,7 @@ from contextlib import redirect_stdout
 import io
 import json
 import os
-from typing import Dict
+from typing import Dict, Tuple
 from urllib.parse import urljoin
 import aiohttp
 import aiohttp.client_exceptions
@@ -84,17 +84,23 @@ class RemoteScheduler:
     def __init__(self, worker_name:str, remote_host:str):
         self.client = RemoteApiClient(remote_host)
         self._worker_name = worker_name
-        self._jobs:"Dict[str,Job]" = {}
+        self._jobs:"Dict[str,Tuple[Job,str]]" = {}
         self._loop_task = None
         self._loop = asyncio.get_event_loop()
+        self.queue_semaphores = {}
 
     async def init(self):
         await self.client.register_worker(self._worker_name)
 
     async def add_job(self, job:Job, job_name:str, job_config:JobConfig):
         cron = job_config.cron
+        queue_name = job_config.queue or ''
         await self.client.register_job(self._worker_name, job_name=job_name, cron=cron, timezone=job_config.timezone)
-        self._jobs[job_name] = job
+        self._jobs[job_name] = (job, queue_name)
+        if queue_name not in self.queue_semaphores:
+            # each queue has a max concurrency of 1
+            max_conc = 1
+            self.queue_semaphores[queue_name] = asyncio.Semaphore(max_conc)
 
     async def start_main_loop(self):
         while True:
@@ -102,7 +108,13 @@ class RemoteScheduler:
             try:
                 async for event in self.client.subscribe_worker_eventstream(self._worker_name):
                     print(event)
-                    await self.execute_task(event['data']['job_name'], event['data']['id'])
+                    job_name = event['data']['job_name']
+                    instance_id = event['data']['id']
+                    _, queue_name = self._jobs[job_name]
+                    # Queue concurrency control
+                    semaphore = self.queue_semaphores[queue_name]
+                    self._loop.create_task(self._run_with_semaphore(semaphore, job_name, instance_id))
+                    # await self.execute_task(event['data']['job_name'], event['data']['id'])
             except aiohttp.client_exceptions.ClientPayloadError:
                 logger.info('connection lost')
                 await asyncio.sleep(1)
@@ -122,7 +134,7 @@ class RemoteScheduler:
         self._loop_task = self._loop.create_task(self.start_main_loop())
 
     async def execute_task(self, job_name, instance_id:int):
-        job = self._jobs[job_name]
+        job, _ = self._jobs[job_name]
         logfile_dir = f'joblog/{instance_id}'
         if not os.path.exists(logfile_dir):
             os.makedirs(logfile_dir)
@@ -155,3 +167,7 @@ class RemoteScheduler:
         output_stream.close()
         await self.client.commit_job_log(self._worker_name, job_name, instance_id, logfile_path)
         await self.client.update_job_instance(self._worker_name, job_name, instance_id, status='COMPLETED', ret_code=ret_code)
+
+    async def _run_with_semaphore(self, semaphore, job_name, instance_id):
+        async with semaphore:
+            await self.execute_task(job_name, instance_id)
