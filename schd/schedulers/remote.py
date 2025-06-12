@@ -146,12 +146,15 @@ class RemoteScheduler:
         logger.info('starting job %s@%d', job_name, instance_id)
         await self.client.update_job_instance(self._worker_name, job_name, instance_id, status='RUNNING')
         try:
+            def execute_job():
+                with redirect_stdout(text_stream):
+                    job_result = job.execute(context)
+                    return job_result
+            
             loop = asyncio.get_running_loop()
-            with redirect_stdout(text_stream):
-                # job_result = job.execute(context)
-                job_result = await loop.run_in_executor(
-                    None, job.execute, context
-                )
+            job_result = await loop.run_in_executor(
+                None, execute_job
+            )
 
             if job_result is None:
                 ret_code = 0
