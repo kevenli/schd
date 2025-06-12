@@ -7,6 +7,7 @@ from typing import Dict
 from urllib.parse import urljoin
 import aiohttp
 import aiohttp.client_exceptions
+from schd.config import JobConfig
 from schd.job import JobContext, Job
 
 import logging
@@ -25,11 +26,14 @@ class RemoteApiClient:
                 response.raise_for_status()
                 result = await response.json()
 
-    async def register_job(self, worker_name, job_name, cron):
+    async def register_job(self, worker_name, job_name, cron, timezone=None):
         url = urljoin(self._base_url, f'/api/workers/{worker_name}/jobs/{job_name}')
         post_data = {
             'cron': cron,
         }
+        if timezone:
+            post_data['timezone'] = timezone
+
         async with aiohttp.ClientSession() as session:
             async with session.put(url, json=post_data) as response:
                 response.raise_for_status()
@@ -87,8 +91,9 @@ class RemoteScheduler:
     async def init(self):
         await self.client.register_worker(self._worker_name)
 
-    async def add_job(self, job:Job, cron, job_name):
-        await self.client.register_job(self._worker_name, job_name=job_name, cron=cron)
+    async def add_job(self, job:Job, job_name:str, job_config:JobConfig):
+        cron = job_config.cron
+        await self.client.register_job(self._worker_name, job_name=job_name, cron=cron, timezone=job_config.timezone)
         self._jobs[job_name] = job
 
     async def start_main_loop(self):
@@ -100,8 +105,10 @@ class RemoteScheduler:
                     await self.execute_task(event['data']['job_name'], event['data']['id'])
             except aiohttp.client_exceptions.ClientPayloadError:
                 logger.info('connection lost')
+                await asyncio.sleep(1)
             except aiohttp.client_exceptions.SocketTimeoutError:
                 logger.info('SocketTimeoutError')
+                await asyncio.sleep(1)
             except aiohttp.client_exceptions.ClientConnectorError:
                 # cannot connect, try later
                 logger.debug('connect failed, ClientConnectorError, try later.')

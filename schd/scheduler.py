@@ -195,7 +195,7 @@ class LocalScheduler:
     async def init(self):
         pass
 
-    async def add_job(self, job: Job, cron_expression: str, job_name: str) -> None:
+    async def add_job(self, job: Job, job_name: str, job_config:JobConfig) -> None:
         """
         Add a job to the scheduler.
 
@@ -205,6 +205,7 @@ class LocalScheduler:
         """
         self._jobs[job_name] = job
         try:
+            cron_expression = job_config.cron
             cron_trigger = CronTrigger.from_crontab(cron_expression)
             self.scheduler.add_job(self.execute_job, cron_trigger, kwargs={'job_name':job_name})
             logger.info(f"Job '{job_name or job.__class__.__name__}' added with cron expression: {cron_expression}")
@@ -304,7 +305,7 @@ async def run_daemon(config_file=None):
         job_class_name = job_config.cls
         job_cron = job_config.cron
         job = build_job(job_name, job_class_name, job_config)
-        await scheduler.add_job(job, job_cron, job_name=job_name)
+        await scheduler.add_job(job, job_name, job_config)
         logger.info('job added, %s', job_name)
 
     logger.info('scheduler starting.')
