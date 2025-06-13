@@ -7,7 +7,7 @@ def read_requirements():
 
 setup(
     name="schd",
-    version="0.0.14",
+    version="0.0.15",
     url="https://github.com/kevenli/schd",
     packages=find_packages(exclude=('tests', 'tests.*')),
     install_requires=['apscheduler<4.0', 'pyaml', 'aiohttp'],
