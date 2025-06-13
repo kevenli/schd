@@ -12,8 +12,5 @@ class JobsCommand(CommandBase):
 
     def run(self, args):
         config = read_config(config_file=args.config)
-        for job_name, job_config in config['jobs'].items():
-            job_class_name = job_config.pop('class')
-            job_cron = job_config.pop('cron')
-            # print(f'{job_name} : {job_class_name} {job_cron}')
+        for job_name, _ in config.jobs.items():
             print(job_name)
