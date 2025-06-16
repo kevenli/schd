@@ -11,7 +11,8 @@ def run_job(config_file, job_name):
     job = build_job(job_name, job_config.cls, job_config)
     job_context = JobContext(job_name)
     job_context.output_to_console = True
-    job(context=job_context)
+    ret = job.execute(context=job_context)
+    print(ret)
 
 
 class RunCommand(CommandBase):
@@ -20,7 +21,7 @@ class RunCommand(CommandBase):
         parser.add_argument('--config', '-c')
 
     def run(self, args):
-        logging.basicConfig(level=logging.INFO)
+        logging.basicConfig(format='%(asctime)s %(name)s - %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
         job_name = args.job
         config_file = args.config
         run_job(config_file, job_name)
