@@ -14,6 +14,7 @@ setup(
     entry_points={
         'console_scripts': [
             'schd = schd.cmds.schd:main',
+            'scsendmail = schd.cmds.scsendmail:main',
         ],
     },
     license="ApacheV2",

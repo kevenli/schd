@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List, Optional
 import sys
 
-from schd.config import EmailConfig, read_config
+from schd.config import read_config
 from schd.email import EmailService
 
 
@@ -82,5 +82,4 @@ def main():
 
 
 if __name__ == '__main__':
-    import os
     main()
