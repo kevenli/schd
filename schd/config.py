@@ -33,9 +33,14 @@ class ConfigValue:
         for f in fields(cls):
             field_name = f.name
             json_key = f.metadata.get("json", f.name)
+            envvar_key = f.metadata.get('env_var')
             field_type = type_hints[field_name]
             origin = get_origin(field_type)
             args = get_args(field_type)
+
+            if envvar_key and envvar_key in os.environ:
+                init_data[field_name] = _cast_type(os.environ[envvar_key], field_type)
+                continue
 
             if json_key in data:
                 value = data[json_key]
@@ -62,6 +67,44 @@ class ConfigValue:
                 else:
                     init_data[field_name] = value
         return cls(**init_data)
+
+def _cast_type(value, target_type):
+    origin = get_origin(target_type)
+    args = get_args(target_type)
+
+    # Handle Optional[T] or Union[T1, T2, ...]
+    if origin is Union:
+        # Optional[str] is Union[str, NoneType]
+        for typ in args:
+            if typ is type(None):
+                continue  # skip NoneType
+            try:
+                return _cast_type(value, typ)
+            except (ValueError, TypeError):
+                continue
+        raise ValueError(f"Cannot cast {value!r} to any of {args}")
+    
+    # Handle base types
+    if target_type == bool:
+        return value.lower() in ('true', '1', 'yes', 'on', True)
+    elif target_type == int:
+        return int(value)
+    elif target_type == float:
+        return float(value)
+    elif target_type == str:
+        return value
+    else:
+        raise TypeError(f"Unsupported type: {target_type}")
+
+@dataclass
+class EmailConfig(ConfigValue):
+    smtp_server: Optional[str] = field(metadata={'env_var': 'SCHD_SMTP_SERVER'}, default=None)
+    smtp_user: Optional[str] = field(metadata={'env_var': 'SCHD_SMTP_USER'}, default=None)
+    smtp_password: Optional[str] = field(metadata={'env_var': 'SCHD_SMTP_PASS'}, default=None)
+    from_addr: Optional[str] = field(metadata={'env_var': 'SCHD_SMTP_FROM'}, default=None)
+    to_addr: Optional[str] = field(metadata={'env_var': 'SCHD_SMTP_TO'}, default=None)
+    smtp_port: int = field(metadata={'env_var': 'SCHD_SMTP_PORT'}, default=25)
+    smtp_starttls: bool = field(metadata={'env_var': 'SCHD_SMTP_TLS'}, default=False)
 
 
 @dataclass
