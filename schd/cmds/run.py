@@ -1,18 +1,18 @@
+import asyncio
 import logging
 from schd.cmds.base import CommandBase
-from schd.scheduler import build_job, read_config, JobContext
+from schd.scheduler import LocalScheduler, build_job, read_config
 
 
-def run_job(config_file, job_name):
+async def run_job(config_file, job_name):
     config = read_config(config_file)
+    scheduler = LocalScheduler(config)
 
     job_config = config.jobs[job_name]
 
     job = build_job(job_name, job_config.cls, job_config)
-    job_context = JobContext(job_name)
-    job_context.output_to_console = True
-    ret = job.execute(context=job_context)
-    print(ret)
+    await scheduler.add_job(job, job_name, job_config)
+    scheduler.execute_job(job_name)
 
 
 class RunCommand(CommandBase):
@@ -24,4 +24,4 @@ class RunCommand(CommandBase):
         logging.basicConfig(format='%(asctime)s %(name)s - %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
         job_name = args.job
         config_file = args.config
-        run_job(config_file, job_name)
+        asyncio.run(run_job(config_file, job_name))

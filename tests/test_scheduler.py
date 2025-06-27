@@ -1,7 +1,7 @@
 import unittest
 from contextlib import redirect_stdout
 import io
-from schd.config import JobConfig
+from schd.config import JobConfig, read_config
 from schd.scheduler import LocalScheduler, build_job
 
 
@@ -31,8 +31,9 @@ class RedirectStdoutTest(unittest.TestCase):
 class LocalSchedulerTest(unittest.IsolatedAsyncioTestCase):
     async def test_add_execute(self):
         job = TestOutputJob()
-        target = LocalScheduler()
-        await target.add_job(job, "0 1 * * *", 'test_job')
+        config = read_config('tests/conf/schd.yaml')
+        target = LocalScheduler(config)
+        await target.add_job(job, 'test_job', config.jobs['ls'])
         target.execute_job("test_job")
 
 

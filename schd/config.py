@@ -123,6 +123,7 @@ class SchdConfig(ConfigValue):
     scheduler_cls: str = 'LocalScheduler'
     scheduler_remote_host: Optional[str] = None
     worker_name: str = 'local'
+    email: EmailConfig = field(default_factory=lambda: EmailConfig.from_dict({}))
 
     def __getitem__(self,key):
         # compatible to old fashion config['key']

@@ -2,6 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 from schd.config import EmailConfig
+from schd.email import EmailService
 
 
 class EmailConfigTest(unittest.TestCase):
@@ -15,7 +16,7 @@ class EmailConfigTest(unittest.TestCase):
         self.assertEqual(target.smtp_port, 25)
         self.assertEqual(target.smtp_starttls, False)
 
-    @patch.dict(os.environ, {"SCHD_SMTP_SERVER": "smtp.test.com"}, clear=False)
+    @patch.dict(os.environ, {"SCHD_SMTP_SERVER": "smtp.test.com"}, clear=True)
     def test_env_var_override(self):
         config = EmailConfig.from_dict(dict(
             smtp_server="default.server",
@@ -53,3 +54,15 @@ class EmailConfigTest(unittest.TestCase):
         ))
 
         self.assertEqual(config.smtp_starttls, True)
+
+
+class EmailServiceTest(unittest.TestCase):
+    def test_send_email(self):
+        config = EmailConfig.from_dict(dict())
+        service = EmailService.from_config(config)
+        try:
+            recipient = os.environ['SCHD_SMTP_TO']
+        except KeyError:
+            raise unittest.SkipTest('SCHD_SMTP_TO env not specified, skip test')
+        
+        service.send_mail('test', 'test_content', recipient)

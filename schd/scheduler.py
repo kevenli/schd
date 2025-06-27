@@ -5,6 +5,7 @@ import logging
 import importlib
 import io
 import os
+import socket
 import sys
 from typing import Any, Optional, Dict
 import smtplib
@@ -16,6 +17,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor
 from schd import __version__ as schd_version
+from schd.email import EmailService
 from schd.schedulers.remote import RemoteScheduler
 from schd.util import ensure_bool
 from schd.job import Job, JobContext, JobExecutionResult
@@ -179,7 +181,7 @@ class ConsoleErrorNotifier:
 
 
 class LocalScheduler:
-    def __init__(self, max_concurrent_jobs: int = 10):
+    def __init__(self, config:SchdConfig, max_concurrent_jobs: int = 10):
         """
         Initialize the LocalScheduler with support for concurrent job execution.
         
@@ -190,6 +192,9 @@ class LocalScheduler:
         }
         self.scheduler = BlockingScheduler(executors=executors)
         self._jobs:Dict[str, Job] = {}
+        self.email_service = EmailService.from_config(config.email)
+        self.to_mail = config.email.to_addr
+        self.worker_name = config.worker_name or socket.gethostname()
         logger.info("LocalScheduler initialized in 'local' mode with concurrency support")
 
     async def init(self):
@@ -234,8 +239,13 @@ class LocalScheduler:
             logger.exception('error when executing job, %s', ex)
             ret_code = -1
 
+        output = output_stream.getvalue()
         logger.info('job %s execute complete: %d', job_name, ret_code)
-        logger.info('job %s process output: \n%s', job_name, output_stream.getvalue())
+        logger.info('job %s process output: \n%s', job_name, output)
+        if ret_code != 0 and self.to_mail:
+            self.email_service.send_mail('job failed %s %s' % (self.worker_name, job_name),
+                                         content=output,
+                                         to_emails=self.to_mail)
 
     def run(self):
         """
@@ -255,7 +265,7 @@ def build_scheduler(config:SchdConfig):
     scheduler_cls = os.environ.get('SCHD_SCHEDULER_CLS') or config.scheduler_cls
     
     if scheduler_cls == 'LocalScheduler':
-        scheduler = LocalScheduler()
+        scheduler = LocalScheduler(config)
     elif scheduler_cls == 'RemoteScheduler':
         logger.info('scheduler_cls: %s', scheduler_cls)
         scheduler_remote_host = os.environ.get('SCHD_SCHEDULER_REMOTE_HOST') or config.scheduler_remote_host
