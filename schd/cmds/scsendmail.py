@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List, Optional
 import sys
 
-from schd.config import read_config
+from schd.config import read_config, ConfigFileNotFound, EmailConfig
 from schd.email import EmailService
 
 
@@ -36,10 +36,12 @@ def main():
     parser.add_argument('--add-attach', '-a', action='append', dest='attachments', help='Attachment file paths')
     parser.add_argument('--debug', action='store_true', default=False, help='Print instead of sending')
     parser.add_argument('--config')
+    parser.add_argument('--loglevel', default='INFO', help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
 
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=args.loglevel.upper(),
+                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     # Load HTML content if provided
     html_content = None
