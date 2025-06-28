@@ -28,7 +28,7 @@ class ConfigValue:
         type_hints = get_type_hints(cls)
         init_data:Dict[str,Any] = {}
         if not is_dataclass(cls):
-            raise TypeError('class %s is not dataclass' % cls)
+            raise TypeError(f'class {cls} is not dataclass')
         
         for f in fields(cls):
             field_name = f.name
@@ -133,13 +133,19 @@ class SchdConfig(ConfigValue):
             raise KeyError(key)
 
 
+class ConfigFileNotFound(Exception):...
+
+
 def read_config(config_file=None) -> SchdConfig:
-    if config_file is None and 'SCHD_CONFIG' in os.environ:
-        config_file = os.environ['SCHD_CONFIG']
+    if config_file:
+        config_filepath = config_file
+    elif 'SCHD_CONFIG' in os.environ:
+        config_filepath = os.environ['SCHD_CONFIG']
+    elif os.path.exists('conf/schd.yaml'):
+        config_filepath = 'conf/schd.yaml'
+    else:
+        raise ConfigFileNotFound()
 
-    if config_file is None:
-        config_file = 'conf/schd.yaml'
-
-    with open(config_file, 'r', encoding='utf8') as f:
+    with open(config_filepath, 'r', encoding='utf8') as f:
         config = SchdConfig.from_dict(yaml.load(f, Loader=yaml.FullLoader))
         return config
