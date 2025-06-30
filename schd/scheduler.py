@@ -280,8 +280,7 @@ def build_scheduler(config:SchdConfig):
     return scheduler
 
 
-async def run_daemon(config_file=None):
-    config = read_config(config_file=config_file)
+async def run_daemon(config):
     scheduler = build_scheduler(config)
     await scheduler.init()
 
@@ -329,11 +328,12 @@ async def main():
     parser.add_argument('--logfile')
     parser.add_argument('--config', '-c')
     args = parser.parse_args()
-    config_file = args.config
 
     logging.basicConfig(level=logging.DEBUG)
 
-    print(f'starting schd, {schd_version}, config_file={config_file}')
+    config = read_config(args.config)
+    print(f'starting schd, {schd_version}')
+    
 
     if args.logfile:
         log_stream = open(args.logfile, 'a', encoding='utf8')
@@ -343,7 +343,7 @@ async def main():
         log_stream = sys.stdout
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s - %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', stream=log_stream)
-    await run_daemon(config_file)
+    await run_daemon(config)
 
 
 if __name__ == '__main__':
