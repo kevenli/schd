@@ -57,7 +57,7 @@ def main():
     logging.debug(schd_config.email)
     service = EmailService.from_config(schd_config.email)
 
-    to_emails = parse_recipients(args.recipients)
+    to_emails = parse_recipients(args.recipients) or [schd_config.email.to_addr]
     cc_emails = parse_recipients(args.cc)
     bcc_emails = parse_recipients(args.bcc)
     attachments = args.attachments or []
