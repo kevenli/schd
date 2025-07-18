@@ -53,11 +53,19 @@ def main():
             sys.exit(1)
 
     # Load config from environment or config file
-    schd_config = read_config(args.config)
-    logging.debug(schd_config.email)
-    service = EmailService.from_config(schd_config.email)
+    try:
+        schd_config = read_config(args.config)
+        email_config = schd_config.email
+    except ConfigFileNotFound:
+        if args.config:
+            print(f"Config file not found: {args.config}", file=sys.stderr)
+            return sys.exit(1)
+        email_config = EmailConfig.from_dict({})
+        
+    logging.debug(email_config)
+    service = EmailService.from_config(email_config)
 
-    to_emails = parse_recipients(args.recipients) or [schd_config.email.to_addr]
+    to_emails = parse_recipients(args.recipients) or [email_config.to_addr]
     cc_emails = parse_recipients(args.cc)
     bcc_emails = parse_recipients(args.bcc)
     attachments = args.attachments or []
