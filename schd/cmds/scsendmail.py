@@ -60,6 +60,9 @@ def main():
         if args.config:
             print(f"Config file not found: {args.config}", file=sys.stderr)
             return sys.exit(1)
+        
+        logging.warning("No config file found, using default email config")
+        # Use default email config if no config file is provided
         email_config = EmailConfig.from_dict({})
         
     logging.debug(email_config)
