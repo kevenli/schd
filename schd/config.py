@@ -120,9 +120,9 @@ class JobConfig(ConfigValue):
 @dataclass
 class SchdConfig(ConfigValue):
     jobs: Dict[str, JobConfig] = field(default_factory=dict)
-    scheduler_cls: str = 'LocalScheduler'
-    scheduler_remote_host: Optional[str] = None
-    worker_name: str = 'local'
+    scheduler_cls: str = field(metadata={'env_var': 'SCHD_SCHEDULER_CLS'}, default='LocalScheduler')
+    scheduler_remote_host: Optional[str] = field(metadata={'env_var': 'SCHD_SCHEDULER_REMOTE_HOST'}, default=None)
+    worker_name: str = field(metadata={'env_var': 'SCHD_WORKER_NAME'}, default='local')
     email: EmailConfig = field(default_factory=lambda: EmailConfig.from_dict({}))
 
     def __getitem__(self,key):

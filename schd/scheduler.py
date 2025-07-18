@@ -262,16 +262,16 @@ class LocalScheduler:
 
 
 def build_scheduler(config:SchdConfig):
-    scheduler_cls = os.environ.get('SCHD_SCHEDULER_CLS') or config.scheduler_cls
+    scheduler_cls = config.scheduler_cls
     
     if scheduler_cls == 'LocalScheduler':
         scheduler = LocalScheduler(config)
     elif scheduler_cls == 'RemoteScheduler':
         logger.info('scheduler_cls: %s', scheduler_cls)
-        scheduler_remote_host = os.environ.get('SCHD_SCHEDULER_REMOTE_HOST') or config.scheduler_remote_host
+        scheduler_remote_host = config.scheduler_remote_host
         assert scheduler_remote_host, 'scheduler_remote_host cannot be none'
         logger.info('scheduler_remote_host: %s ', scheduler_remote_host)
-        worker_name = os.environ.get('SCHD_WORKER_NAME') or config.worker_name
+        worker_name = config.worker_name
         assert worker_name, 'worker_name cannot be none'
         logger.info('worker_name: %s ', worker_name)
         scheduler = RemoteScheduler(worker_name=worker_name, remote_host=scheduler_remote_host)
