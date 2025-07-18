@@ -79,6 +79,18 @@ class RemoteApiClient:
                     logger.info("Status: %d", resp.status)
                     logger.info("Response: %s", await resp.text())
 
+    async def add_trigger(self, worker_name, job_name, on_job_name, on_worker_name=None, on_job_status='ALL'):
+        url = urljoin(self._base_url, f'/api/workers/{worker_name}/jobs/{job_name}/triggers')
+        async with aiohttp.ClientSession() as session:
+            post_data={
+                'on_job_name': on_job_name,
+                'on_worker_name': on_worker_name,
+                'on_job_status': on_job_status
+            }
+            async with session.post(url, json=post_data) as response:
+                response.raise_for_status()
+                result = await response.json()
+                return result
 
 class RemoteScheduler:
     def __init__(self, worker_name:str, remote_host:str):

@@ -5,12 +5,14 @@ from schd.config import ConfigFileNotFound, read_config
 from schd import __version__ as schd_version
 from .daemon import DaemonCommand
 from .run import RunCommand
+from .addtrigger import AddTriggerCommand
 
 
 commands = {
     'daemon': DaemonCommand(),
     'run': RunCommand(),
     'jobs': JobsCommand(),
+    'addtrigger': AddTriggerCommand(),
 }
 
 def main():
@@ -18,7 +20,7 @@ def main():
     parser = argparse.ArgumentParser('schd')
     parser.add_argument('--version', action='store_true', default=False)
     parser.add_argument('--config')
-    sub_command_parsers = parser.add_subparsers(dest='cmd')
+    sub_command_parsers = parser.add_subparsers(dest='cmd', help='sub commands')
 
     for cmd, cmd_obj in commands.items():
         sub_command_parser = sub_command_parsers.add_parser(cmd)
