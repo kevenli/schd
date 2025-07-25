@@ -138,6 +138,10 @@ class RemoteScheduler:
                 logger.debug('connect failed, ClientConnectorError, try later.')
                 await asyncio.sleep(10)
                 continue
+            except ConnectionResetError:
+                logger.info('connect failed, ConnectionResetError, try later.')
+                await asyncio.sleep(10)
+                continue
             except Exception as ex:
                 logger.error('error in start_main_loop, %s', ex, exc_info=ex)
                 break
