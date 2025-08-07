@@ -45,36 +45,25 @@ Send email notification when job run failed.
 
 In schd.yaml
 ``` yaml
-error_notifier:
-  type: email
+email:
   smtp_server: smtp.gmail.com
   smtp_user: yourname@gmail.com
   smtp_password: xxx
-  # from_addr: yourname@gmail.com
-  # to_addr: yourname@gmail.com
-  # smtp_port: 587
-  # smtp_starttls: true
-  
+  from_addr: yourname@gmail.com
+  to_addr: yourname@gmail.com
+  smtp_port: 587
+  smtp_starttls: true
 ```
 
 Or use environments instead.
 
-``` yaml
-error_notifier:
-  type: email
-  # debug: true
-  # smtp parameters are asigned by environments
-  # export SMTP_USER='yourname@gmail.com'
-  # export SMTP_PASS='xxx'
-  # export SMTP_SERVER='smtp.gmail.com'
-  # export SMTP_FROM="yourname@gmail.com"
-  # export SCHD_ADMIN_EMAIL="yourname@gmail.com"
-```
-
 environments:
-
-export SMTP_USER='yourname@gmail.com'
-export SMTP_PASS='xxx'
-export SMTP_SERVER='smtp.gmail.com'
-export SMTP_FROM="yourname@gmail.com"
-export SCHD_ADMIN_EMAIL="yourname@gmail.com"
+``` bash
+export SCHD_SMTP_USER='yourname@gmail.com'
+export SCHD_SMTP_PASS='xxx'
+export SCHD_SMTP_SERVER='smtp.gmail.com'
+export SCHD_SMTP_FROM="yourname@gmail.com"
+export SCHD_SMTP_TO="yourname@gmail.com"
+export SCHD_SMTP_PORT=25
+export SCHD_SMTP_TLS=false
+```
