@@ -9,6 +9,7 @@ import aiohttp
 import aiohttp.client_exceptions
 from schd.config import JobConfig
 from schd.job import JobContext, Job
+from schd import __version__ as schd_version
 
 import logging
 
@@ -39,21 +40,26 @@ class RemoteApiClient:
                 response.raise_for_status()
                 result = await response.json()
 
-    async def subscribe_worker_eventstream(self, worker_name):
+    async def subscribe_worker_eventstream(self, worker_name, socket_timeout=600):
         url = urljoin(self._base_url, f'/api/workers/{worker_name}/eventstream')
-
-        timeout = aiohttp.ClientTimeout(sock_read=600)
+        headers = {
+            'X-SchdClient': 'schd_%s' % schd_version,
+        }
+        timeout = aiohttp.ClientTimeout(sock_read=socket_timeout)
         async with aiohttp.ClientSession(timeout=timeout) as session:
-            async with session.get(url) as resp:
+            async with session.get(url, headers=headers) as resp:
                 resp.raise_for_status()
                 async for line in resp.content:
                     decoded = line.decode("utf-8").strip()
-                    logger.info('got event, raw data: %s', decoded)
+                    logger.debug('got event, raw data: %s', decoded)
                     event = json.loads(decoded)
                     event_type = event['event_type']
                     if event_type == 'NewJobInstance':
                         # event = JobInstanceEvent()
                         yield event
+                    elif event_type == 'heartbeat':
+                        logger.debug('heartbeat received.')
+                        continue
                     else:
                         raise ValueError('unknown event type %s' % event_type)
                     
@@ -116,7 +122,7 @@ class RemoteScheduler:
 
     async def start_main_loop(self):
         while True:
-            logger.info('start_main_loop ')
+            logger.info('start subscribing events.')
             try:
                 async for event in self.client.subscribe_worker_eventstream(self._worker_name):
                     logger.info('got event, %s', event)
