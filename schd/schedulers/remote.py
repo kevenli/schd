@@ -164,13 +164,14 @@ class RemoteScheduler:
         output_stream = io.FileIO(logfile_path, mode='w+')
         text_stream = io.TextIOWrapper(output_stream, encoding='utf-8')
 
-        context = JobContext(job_name=job_name, stdout=text_stream)
+        context = JobContext(job_name=job_name, stdout=text_stream, stderr=text_stream)
         logger.info('starting job %s@%d', job_name, instance_id)
         await self.client.update_job_instance(self._worker_name, job_name, instance_id, status='RUNNING')
         try:
             def execute_job():
                 with redirect_stdout(text_stream):
                     job_result = job.execute(context)
+                    output_stream.flush()
                     return job_result
             
             loop = asyncio.get_running_loop()
@@ -196,7 +197,10 @@ class RemoteScheduler:
         output_stream.flush()
         output_stream.close()
         await self.client.commit_job_log(self._worker_name, job_name, instance_id, logfile_path)
-        await self.client.update_job_instance(self._worker_name, job_name, instance_id, status='COMPLETED', ret_code=ret_code)
+        if ret_code == 0:
+            await self.client.update_job_instance(self._worker_name, job_name, instance_id, status='COMPLETED', ret_code=ret_code)
+        else:
+            await self.client.update_job_instance(self._worker_name, job_name, instance_id, status='FAILED', ret_code=ret_code)
 
     async def _run_with_semaphore(self, semaphore, job_name, instance_id):
         async with semaphore:
