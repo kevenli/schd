@@ -13,11 +13,10 @@ from email.mime.text import MIMEText
 from email.header import Header
 import subprocess
 import tempfile
-from apscheduler.schedulers.blocking import BlockingScheduler
-from apscheduler.triggers.cron import CronTrigger
-from apscheduler.executors.pool import ThreadPoolExecutor
+
 from schd import __version__ as schd_version
 from schd.email import EmailService
+from schd.schedulers.local import LocalScheduler
 from schd.schedulers.remote import RemoteScheduler
 from schd.util import ensure_bool
 from schd.job import Job, JobContext, JobExecutionResult
@@ -77,19 +76,29 @@ class CommandJob:
         return cls(cmd=command, job_name=job_name)
     
     def execute(self, context:JobContext) -> int:
+        # process = subprocess.Popen(
+        #     self.cmd,
+        #     shell=True,
+        #     env=os.environ,
+        #     stdout=subprocess.PIPE,
+        #     stderr=subprocess.PIPE,
+        #     text=True
+        # )
+        stdout = context.stdout if context and context.stdout else sys.stdout
+        stderr = context.stderr if context and context.stderr else sys.stderr
         process = subprocess.Popen(
             self.cmd,
             shell=True,
             env=os.environ,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            stdout=stdout,
+            stderr=stderr,
+            text=True,
         )
 
-        stdout, stderr = process.communicate()
-        if context.stdout:
-            context.stdout.write(stdout)
-            context.stdout.write(stderr)
+        # stdout, stderr = process.communicate()
+        # if context.stdout:
+        #     context.stdout.write(stdout)
+        #     context.stdout.write(stderr)
                 
         ret_code = process.wait()
         return ret_code
@@ -178,87 +187,6 @@ class ConsoleErrorNotifier:
     def __call__(self, e):
         print('ConsoleErrorNotifier:')
         print(e)
-
-
-class LocalScheduler:
-    def __init__(self, config:SchdConfig, max_concurrent_jobs: int = 10):
-        """
-        Initialize the LocalScheduler with support for concurrent job execution.
-        
-        :param max_concurrent_jobs: Maximum number of jobs to run concurrently.
-        """
-        executors = {
-            'default': ThreadPoolExecutor(max_concurrent_jobs)
-        }
-        self.scheduler = BlockingScheduler(executors=executors)
-        self._jobs:Dict[str, Job] = {}
-        self.email_service = EmailService.from_config(config.email)
-        self.to_mail = config.email.to_addr
-        self.worker_name = config.worker_name or socket.gethostname()
-        logger.info("LocalScheduler initialized in 'local' mode with concurrency support")
-
-    async def init(self):
-        pass
-
-    async def add_job(self, job: Job, job_name: str, job_config:JobConfig) -> None:
-        """
-        Add a job to the scheduler.
-
-        :param job: An instance of a class conforming to the Job protocol.
-        :param cron_expression: A string representing the cron schedule.
-        :param job_name: Optional name for the job.
-        """
-        self._jobs[job_name] = job
-        try:
-            cron_expression = job_config.cron
-            cron_trigger = CronTrigger.from_crontab(cron_expression)
-            self.scheduler.add_job(self.execute_job, cron_trigger, kwargs={'job_name':job_name})
-            logger.info(f"Job '{job_name or job.__class__.__name__}' added with cron expression: {cron_expression}")
-        except Exception as e:
-            logger.error(f"Failed to add job '{job_name or job.__class__.__name__}': {str(e)}")
-            raise
-
-    def execute_job(self, job_name:str):
-        job = self._jobs[job_name]
-        output_stream = io.StringIO()
-        context = JobContext(job_name=job_name, stdout=output_stream)
-        try:
-            with redirect_stdout(output_stream):
-                job_result = job.execute(context)
-
-            if job_result is None:
-                ret_code = 0
-            elif isinstance(job_result, int):
-                ret_code = job_result
-            elif hasattr(job_result, 'get_code'):
-                ret_code = job_result.get_code()
-            else:
-                raise ValueError('unsupported result type: %s', job_result)
-            
-        except Exception as ex:
-            logger.exception('error when executing job, %s', ex)
-            ret_code = -1
-
-        output = output_stream.getvalue()
-        logger.info('job %s execute complete: %d', job_name, ret_code)
-        logger.info('job %s process output: \n%s', job_name, output)
-        if ret_code != 0 and self.to_mail:
-            self.email_service.send_mail('job failed %s %s' % (self.worker_name, job_name),
-                                         content=output,
-                                         to_emails=self.to_mail)
-
-    def run(self):
-        """
-        Start the scheduler.
-        """
-        try:
-            logger.info("Starting LocalScheduler...")
-            self.scheduler.start()
-        except (KeyboardInterrupt, SystemExit):
-            logger.info("Scheduler stopped.")
-
-    def start(self):
-        self.scheduler.start()
 
 
 def build_scheduler(config:SchdConfig):

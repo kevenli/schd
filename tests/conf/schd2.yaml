@@ -13,4 +13,8 @@ jobs:
     class: CommandJob
     cron: "* * * * *"
     cmd: "python outputstderr.py"
-    
+  
+  LongRunningJob:
+    class: test_scheduler:LongRunningJob
+    cron: "* * * * *"
+    queue: long_running_queue

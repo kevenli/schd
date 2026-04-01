@@ -10,6 +10,14 @@ class TestOutputJob:
         print('test output')
 
 
+class LongRunningJob:
+    def execute(self, context):
+        import time
+        print('long running job start')
+        time.sleep(5)
+        print('long running job end')
+
+
 class RedirectStdoutTest(unittest.TestCase):
     def test_redirect(self):
         buffer = io.StringIO()
@@ -54,12 +62,12 @@ class JobHasFromSettingsMethod:
 
 class TestBuildJob(unittest.TestCase):
     def test_build_no_param(self):
-        job_cls = 'test_scheduler:TestOutputJob'
+        job_cls = 'tests.test_scheduler:TestOutputJob'
         built_job = build_job('TestOutputJob', job_cls, JobConfig(cls=job_cls, cron='* * * * *'))
         self.assertIsNotNone(built_job)
 
     def test_build_has_param(self):
-        job_cls = 'test_scheduler:JobHasParams'
+        job_cls = 'tests.test_scheduler:JobHasParams'
         built_job:JobHasParams = build_job('JobHasParams', job_cls, JobConfig(cls=job_cls, cron='* * * * *', params={'x':1,'y':2}))
         self.assertIsNotNone(built_job)
         # build_job should pass params into contrustor accordingly
@@ -67,7 +75,7 @@ class TestBuildJob(unittest.TestCase):
         self.assertEqual(built_job.y, 2)
 
     def test_build_from_settings(self):
-        job_cls = 'test_scheduler:JobHasFromSettingsMethod'
+        job_cls = 'tests.test_scheduler:JobHasFromSettingsMethod'
         built_job:JobHasFromSettingsMethod = build_job('JobHasFromSettingsMethod', job_cls, JobConfig(cls=job_cls, cron='* * * * *', params={'z':3}))
         self.assertIsNotNone(built_job)
         # build_job should pass params into contrustor accordingly
