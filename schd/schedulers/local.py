@@ -3,6 +3,7 @@ from datetime import datetime
 import logging
 import socket
 import threading
+from time import sleep
 from typing import Dict
 from queue import Queue
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -146,6 +147,7 @@ class LocalScheduler:
                             content=output,
                             to_emails=self.to_mail
                         )
+            sleep(5)  # Sleep for a while before checking again
 
     def run(self):
         """
